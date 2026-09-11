@@ -1,0 +1,36 @@
+# Secrets e variáveis locais
+.env
+.env.*
+!.env.example
+secrets/
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDEs e sistema operacional
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Dados privados ou brutos
+data/private/
+data/raw/
+
+# Modelos locais grandes
+models/
+*.gguf
+
+# Chaves e certificados privados
+*.pem
+*.key
