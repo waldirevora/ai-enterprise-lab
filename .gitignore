@@ -34,3 +34,4 @@ models/
 # Chaves e certificados privados
 *.pem
 *.key
+backups/
