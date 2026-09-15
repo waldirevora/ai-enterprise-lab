@@ -27,6 +27,15 @@ class Settings(BaseSettings):
     ai_max_prompt_chars: int = 12000
     ai_max_output_tokens: int = 2048
 
+    ai_embedding_model: str = "qwen3-embedding:0.6b"
+    ai_embedding_dimensions: int = 1024
+
+    postgres_host: str = "127.0.0.1"
+    postgres_port: int = 5432
+    postgres_db: str = "ai_enterprise_lab"
+    postgres_user: str = "ai_lab"
+    postgres_password: str = ""
+
     external_ai_enabled: bool = False
     external_ai_provider: str = "deepseek"
     external_ai_model: str = ""
