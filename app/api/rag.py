@@ -12,6 +12,15 @@ from app.access.organizations import (
     OrganizationResolutionError,
     resolve_organization_id,
 )
+from app.access.unit_grants import (
+    UnitGrantUnavailableError,
+    load_unit_access_grants,
+)
+from app.access.unit_scope import (
+    UnitScopeDeniedError,
+    UnitScopeUnavailableError,
+    resolve_unit_scope,
+)
 from app.core.config import settings
 from app.rag.schemas import (
     RagCitation,
@@ -97,16 +106,21 @@ async def generate_public_rag(
             organization_id=organization_id,
             question=request.question,
 
-            # Endpoint público permanece estritamente
-            # limitado a conteúdo público.
+            # Endpoint público permanece
+            # estritamente public-only e
+            # corporate-only.
             question_classification="public",
-            allowed_classifications={"public"},
+            allowed_classifications={
+                "public"
+            },
 
             provider=request.provider,
             external_approved=(
                 request.external_approved
             ),
-            retrieval_limit=request.retrieval_limit,
+            retrieval_limit=(
+                request.retrieval_limit
+            ),
             max_context_chunks=(
                 request.max_context_chunks
             ),
@@ -140,37 +154,63 @@ async def generate_authenticated_rag(
     ),
 ) -> RagGenerateResponse:
     try:
+        #
+        # 1. Carrega grants reais do principal.
+        #
+        unit_grants = await load_unit_access_grants(
+            context
+        )
+
+        #
+        # 2. Resolve deterministicamente
+        #    referências explícitas a units.
+        #
+        # Exemplos:
+        #
+        # Financeiro pergunta RH sem grant:
+        # → deny aqui
+        # → retrieval não roda
+        # → LLM não roda
+        #
+        # Financeiro pergunta Financeiro:
+        # → grants são reduzidos para Financeiro
+        #
+        scope_decision = await resolve_unit_scope(
+            context=context,
+            question=request.question,
+            unit_grants=unit_grants,
+        )
+
+        #
+        # 3. Só depois do authorization scope
+        #    o RAG pode ser executado.
+        #
         result = await generate_rag_answer(
-            # Segurança:
-            # tenant vem exclusivamente da identidade
-            # autenticada.
             organization_id=(
                 context.organization_id
             ),
 
             question=request.question,
 
-            # Política conservadora nesta fase:
-            # classificamos a pergunta no teto de
-            # sensibilidade do principal.
-            #
-            # Isso impede que um cliente tente
-            # subdeclarar uma pergunta confidencial
-            # como pública para usar provider externo.
             question_classification=(
                 context.max_classification
             ),
 
-            # O cliente não controla esta lista.
             allowed_classifications=(
                 context.allowed_classifications
+            ),
+
+            unit_grants=(
+                scope_decision.unit_grants
             ),
 
             provider=request.provider,
             external_approved=(
                 request.external_approved
             ),
-            retrieval_limit=request.retrieval_limit,
+            retrieval_limit=(
+                request.retrieval_limit
+            ),
             max_context_chunks=(
                 request.max_context_chunks
             ),
@@ -183,6 +223,35 @@ async def generate_authenticated_rag(
                 request.max_output_tokens
             ),
         )
+
+    except UnitScopeDeniedError as exc:
+        #
+        # Resposta propositalmente genérica.
+        # Não revela se a unit existe ou se
+        # apenas não está autorizada.
+        #
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                "No authorized RAG context was found."
+            ),
+        ) from exc
+
+    except UnitScopeUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Unit scope service unavailable."
+            ),
+        ) from exc
+
+    except UnitGrantUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Unit authorization service unavailable."
+            ),
+        ) from exc
 
     except RagServiceError as exc:
         raise HTTPException(
