@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.providers.catalog import get_provider_catalog
 from app.schemas import GenerateRequest, GenerateResponse
 from app.services.generation import generate_text
+from app.api.rag import router as rag_router
 
 
 app = FastAPI(
@@ -10,6 +11,7 @@ app = FastAPI(
     version="0.1.0",
 )
 
+app.include_router(rag_router)
 
 @app.get("/health")
 def health() -> dict[str, str]:
