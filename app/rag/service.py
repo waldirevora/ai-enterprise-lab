@@ -64,6 +64,7 @@ def build_augmented_prompt(
 
 async def generate_rag_answer(
     *,
+    organization_id: int,
     question: str,
     question_classification: DataClassification,
     allowed_classifications: Collection[str],
@@ -77,6 +78,7 @@ async def generate_rag_answer(
     max_output_tokens: int | None = None,
 ) -> RagGenerationResult:
     results = await retrieve_chunks(
+        organization_id=organization_id,
         query=question,
         allowed_classifications=allowed_classifications,
         limit=retrieval_limit,

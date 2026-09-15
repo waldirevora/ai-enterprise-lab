@@ -105,6 +105,7 @@ def test_no_authorized_context_is_rejected(
     ):
         asyncio.run(
             generate_rag_answer(
+                organization_id=1,
                 question="teste",
                 question_classification="public",
                 allowed_classifications={"public"},
@@ -156,6 +157,7 @@ def test_internal_context_upgrades_public_question(
 
     result = asyncio.run(
         generate_rag_answer(
+            organization_id=1,
             question="pergunta publica",
             question_classification="public",
             allowed_classifications={
@@ -171,10 +173,14 @@ def test_internal_context_upgrades_public_question(
         == "internal"
     )
 
-    assert captured["classification"] == "internal"
+    assert (
+        captured["classification"]
+        == "internal"
+    )
 
-    assert result.generation.response == (
-        "RESPOSTA_OK"
+    assert (
+        result.generation.response
+        == "RESPOSTA_OK"
     )
 
 
@@ -220,6 +226,7 @@ def test_confidential_question_stays_confidential(
 
     result = asyncio.run(
         generate_rag_answer(
+            organization_id=1,
             question="pergunta confidencial",
             question_classification="confidential",
             allowed_classifications={"public"},
@@ -267,6 +274,7 @@ def test_external_provider_cannot_receive_internal_rag_context(
     ) as exc_info:
         asyncio.run(
             generate_rag_answer(
+                organization_id=1,
                 question="pergunta publica",
                 question_classification="public",
                 allowed_classifications={
@@ -284,6 +292,7 @@ def test_external_provider_cannot_receive_internal_rag_context(
         "not allowed for 'internal' data"
         in exc_info.value.detail
     )
+
 
 def test_result_exposes_only_chunks_used_in_context(
     monkeypatch,
@@ -328,6 +337,7 @@ def test_result_exposes_only_chunks_used_in_context(
 
     result = asyncio.run(
         generate_rag_answer(
+            organization_id=1,
             question="teste",
             question_classification="public",
             allowed_classifications={"public"},
@@ -346,6 +356,8 @@ def test_result_exposes_only_chunks_used_in_context(
         result.retrieved_chunks[0].document_id
         == 1
     )
+
+
 def test_augmented_prompt_respects_global_prompt_limit(
     monkeypatch,
 ):
@@ -375,6 +387,7 @@ def test_augmented_prompt_respects_global_prompt_limit(
     ) as exc_info:
         asyncio.run(
             generate_rag_answer(
+                organization_id=1,
                 question="pergunta publica",
                 question_classification="public",
                 allowed_classifications={"public"},

@@ -10,6 +10,20 @@ from app.rag.retrieval import (
 )
 
 
+def test_invalid_organization_is_rejected():
+    with pytest.raises(
+        RagRetrievalError,
+        match="organization_id must be a positive integer",
+    ):
+        asyncio.run(
+            retrieve_chunks(
+                organization_id=0,
+                query="teste",
+                allowed_classifications={"public"},
+            )
+        )
+
+
 def test_empty_query_is_rejected():
     with pytest.raises(
         RagRetrievalError,
@@ -17,6 +31,7 @@ def test_empty_query_is_rejected():
     ):
         asyncio.run(
             retrieve_chunks(
+                organization_id=1,
                 query="   ",
                 allowed_classifications={"public"},
             )
@@ -30,6 +45,7 @@ def test_empty_classifications_are_rejected():
     ):
         asyncio.run(
             retrieve_chunks(
+                organization_id=1,
                 query="teste",
                 allowed_classifications=set(),
             )
@@ -43,6 +59,7 @@ def test_invalid_classification_is_rejected():
     ):
         asyncio.run(
             retrieve_chunks(
+                organization_id=1,
                 query="teste",
                 allowed_classifications={"secret"},
             )
@@ -56,6 +73,7 @@ def test_invalid_limit_is_rejected():
     ):
         asyncio.run(
             retrieve_chunks(
+                organization_id=1,
                 query="teste",
                 allowed_classifications={"public"},
                 limit=21,
@@ -80,11 +98,17 @@ def test_successful_retrieval(
 
     async def fake_search_database(
         *,
+        organization_id,
         embedding,
         allowed_classifications,
         limit,
     ):
-        captured["dimensions"] = len(embedding)
+        captured["organization_id"] = (
+            organization_id
+        )
+        captured["dimensions"] = len(
+            embedding
+        )
         captured["classifications"] = (
             allowed_classifications
         )
@@ -119,6 +143,7 @@ def test_successful_retrieval(
 
     result = asyncio.run(
         retrieve_chunks(
+            organization_id=42,
             query="  pergunta   empresarial ",
             allowed_classifications={
                 "public",
@@ -130,14 +155,27 @@ def test_successful_retrieval(
 
     assert len(result) == 1
     assert result[0].similarity == 0.91
-    assert result[0].classification == "internal"
+    assert (
+        result[0].classification
+        == "internal"
+    )
+
+    assert (
+        captured["organization_id"]
+        == 42
+    )
 
     assert captured["text"] == (
         "pergunta empresarial"
     )
 
-    assert captured["dimensions"] == 1024
+    assert (
+        captured["dimensions"]
+        == 1024
+    )
+
     assert captured["limit"] == 3
+
     assert set(
         captured["classifications"]
     ) == {

@@ -1,5 +1,10 @@
 from fastapi import APIRouter, HTTPException
 
+from app.access.organizations import (
+    OrganizationResolutionError,
+    resolve_organization_id,
+)
+from app.core.config import settings
 from app.rag.schemas import (
     RagCitation,
     RagGenerateRequest,
@@ -17,6 +22,19 @@ router = APIRouter(
 )
 
 
+async def _resolve_public_organization_id() -> int:
+    try:
+        return await resolve_organization_id(
+            settings.ai_default_organization_slug
+        )
+
+    except OrganizationResolutionError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="RAG organization is unavailable.",
+        ) from exc
+
+
 @router.post(
     "/generate",
     response_model=RagGenerateResponse,
@@ -24,13 +42,20 @@ router = APIRouter(
 async def generate_public_rag(
     request: RagGenerateRequest,
 ) -> RagGenerateResponse:
+    organization_id = (
+        await _resolve_public_organization_id()
+    )
+
     try:
         result = await generate_rag_answer(
+            organization_id=organization_id,
+
             question=request.question,
 
             # Segurança:
-            # até existir autenticação/autorização,
-            # o endpoint HTTP só acessa dados públicos.
+            # enquanto autenticação e autorização ainda
+            # não estiverem implementadas, este endpoint
+            # HTTP só pode recuperar documentos públicos.
             question_classification="public",
             allowed_classifications={"public"},
 

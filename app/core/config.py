@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    ai_default_organization_slug: str = "lab-default"
+
     ai_default_provider: ProviderName = "local_fast"
 
     ollama_base_url: str = "http://127.0.0.1:11434"

@@ -64,6 +64,7 @@ def _vector_literal(
 
 async def _find_existing_document_id(
     *,
+    organization_id: int,
     source: str,
     content_hash: str,
 ) -> int | None:
@@ -76,10 +77,12 @@ async def _find_existing_document_id(
                 """
                 SELECT id
                 FROM rag_documents
-                WHERE source = %s
+                WHERE organization_id = %s
+                  AND source = %s
                   AND content_hash = %s;
                 """,
                 (
+                    organization_id,
                     source,
                     content_hash,
                 ),
@@ -95,6 +98,8 @@ async def _find_existing_document_id(
 
 async def _persist_document(
     *,
+    organization_id: int,
+    created_by_principal_id: int | None,
     title: str,
     source: str,
     source_uri: str | None,
@@ -111,6 +116,8 @@ async def _persist_document(
             await cursor.execute(
                 """
                 INSERT INTO rag_documents (
+                    organization_id,
+                    created_by_principal_id,
                     title,
                     source,
                     source_uri,
@@ -124,9 +131,12 @@ async def _persist_document(
                     %s,
                     %s,
                     %s,
+                    %s,
+                    %s,
                     %s
                 )
                 ON CONFLICT (
+                    organization_id,
                     source,
                     content_hash
                 )
@@ -134,6 +144,8 @@ async def _persist_document(
                 RETURNING id;
                 """,
                 (
+                    organization_id,
+                    created_by_principal_id,
                     title,
                     source,
                     source_uri,
@@ -150,10 +162,12 @@ async def _persist_document(
                     """
                     SELECT id
                     FROM rag_documents
-                    WHERE source = %s
+                    WHERE organization_id = %s
+                      AND source = %s
                       AND content_hash = %s;
                     """,
                     (
+                        organization_id,
                         source,
                         content_hash,
                     ),
@@ -207,15 +221,22 @@ async def _persist_document(
 
 async def ingest_document(
     *,
+    organization_id: int,
     title: str,
     source: str,
     text: str,
     classification: str = "internal",
+    created_by_principal_id: int | None = None,
     source_uri: str | None = None,
     metadata: dict[str, Any] | None = None,
     chunk_size_words: int = 220,
     overlap_words: int = 40,
 ) -> IngestionResult:
+    if organization_id < 1:
+        raise RagIngestionError(
+            "organization_id must be a positive integer."
+        )
+
     if classification not in {
         "public",
         "internal",
@@ -238,6 +259,7 @@ async def ingest_document(
 
     try:
         existing_id = await _find_existing_document_id(
+            organization_id=organization_id,
             source=source,
             content_hash=content_hash,
         )
@@ -290,6 +312,10 @@ async def ingest_document(
     try:
         document_id, duplicate = (
             await _persist_document(
+                organization_id=organization_id,
+                created_by_principal_id=(
+                    created_by_principal_id
+                ),
                 title=title,
                 source=source,
                 source_uri=source_uri,
