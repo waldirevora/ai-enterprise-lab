@@ -1,3 +1,4 @@
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
@@ -13,6 +14,20 @@ from app.schemas import GenerateResponse
 
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def mock_default_organization(
+    monkeypatch,
+):
+    async def fake_resolve():
+        return 1
+
+    monkeypatch.setattr(
+        rag_api,
+        "_resolve_public_organization_id",
+        fake_resolve,
+    )
 
 
 def make_result() -> RagGenerationResult:
@@ -64,6 +79,7 @@ def test_rag_endpoint_is_public_only(
         **kwargs,
     ):
         captured.update(kwargs)
+
         return make_result()
 
     monkeypatch.setattr(
@@ -81,6 +97,11 @@ def test_rag_endpoint_is_public_only(
     )
 
     assert response.status_code == 200
+
+    assert (
+        captured["organization_id"]
+        == 1
+    )
 
     assert (
         captured["question_classification"]
@@ -101,6 +122,18 @@ def test_client_cannot_choose_allowed_classifications():
             "allowed_classifications": [
                 "confidential"
             ],
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_client_cannot_choose_organization():
+    response = client.post(
+        "/v1/rag/generate",
+        json={
+            "question": "teste",
+            "organization_id": 999,
         },
     )
 
@@ -133,7 +166,10 @@ def test_rag_response_does_not_expose_chunk_content(
     body = response.json()
 
     assert body["answer"] == "RAG_API_OK"
-    assert len(body["citations"]) == 1
+
+    assert len(
+        body["citations"]
+    ) == 1
 
     assert (
         body["citations"][0]["title"]
@@ -141,11 +177,19 @@ def test_rag_response_does_not_expose_chunk_content(
     )
 
     assert (
+        body["citations"][0]["classification"]
+        == "public"
+    )
+
+    assert (
         "CONTEUDO_INTERNO_DO_CHUNK"
         not in response.text
     )
 
-    assert "content" not in body["citations"][0]
+    assert (
+        "content"
+        not in body["citations"][0]
+    )
 
 
 def test_no_authorized_context_returns_404(
@@ -203,6 +247,36 @@ def test_policy_http_exception_is_preserved(
     )
 
     assert response.status_code == 403
+
     assert response.json()["detail"] == (
         "Provider blocked."
+    )
+
+
+def test_unavailable_default_organization_returns_503(
+    monkeypatch,
+):
+    async def fake_resolve():
+        raise HTTPException(
+            status_code=503,
+            detail="RAG organization is unavailable.",
+        )
+
+    monkeypatch.setattr(
+        rag_api,
+        "_resolve_public_organization_id",
+        fake_resolve,
+    )
+
+    response = client.post(
+        "/v1/rag/generate",
+        json={
+            "question": "teste",
+        },
+    )
+
+    assert response.status_code == 503
+
+    assert response.json()["detail"] == (
+        "RAG organization is unavailable."
     )

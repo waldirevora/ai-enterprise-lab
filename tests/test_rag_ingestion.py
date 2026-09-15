@@ -16,6 +16,7 @@ def test_empty_document_is_rejected():
     ):
         asyncio.run(
             ingest_document(
+                organization_id=1,
                 title="Teste",
                 source="test",
                 text="   ",
@@ -30,6 +31,7 @@ def test_invalid_classification_is_rejected():
     ):
         asyncio.run(
             ingest_document(
+                organization_id=1,
                 title="Teste",
                 source="test",
                 text="conteudo",
@@ -43,6 +45,7 @@ def test_duplicate_document_skips_embeddings(
 ):
     async def fake_find_existing_document_id(
         *,
+        organization_id,
         source,
         content_hash,
     ):
@@ -71,6 +74,7 @@ def test_duplicate_document_skips_embeddings(
 
     result = asyncio.run(
         ingest_document(
+            organization_id=1,
             title="Documento",
             source="test",
             text="conteudo duplicado",
@@ -89,6 +93,7 @@ def test_successful_ingestion(
 
     async def fake_find_existing_document_id(
         *,
+        organization_id,
         source,
         content_hash,
     ):
@@ -133,6 +138,7 @@ def test_successful_ingestion(
 
     result = asyncio.run(
         ingest_document(
+            organization_id=1,
             title="Documento",
             source="test",
             text=text,
@@ -146,11 +152,14 @@ def test_successful_ingestion(
     assert result.duplicate is False
     assert result.chunks_inserted == 3
 
+    assert captured["organization_id"] == 1
+
     prepared_chunks = captured[
         "prepared_chunks"
     ]
 
     assert len(prepared_chunks) == 3
+
     assert len(
         prepared_chunks[0].embedding
     ) == 1024
@@ -164,3 +173,71 @@ def test_vector_dimension_is_validated():
         ingestion._vector_literal(
             [0.1] * 768
         )
+
+
+def test_invalid_organization_id_is_rejected():
+    with pytest.raises(
+        RagIngestionError,
+        match="organization_id must be a positive integer",
+    ):
+        asyncio.run(
+            ingest_document(
+                organization_id=0,
+                title="Teste",
+                source="test",
+                text="conteudo",
+            )
+        )
+
+
+def test_duplicate_lookup_is_scoped_to_organization(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_find_existing_document_id(
+        *,
+        organization_id,
+        source,
+        content_hash,
+    ):
+        captured["organization_id"] = (
+            organization_id
+        )
+
+        return 321
+
+    async def should_not_embed(
+        *,
+        model,
+        text,
+    ):
+        raise AssertionError(
+            "Embedding should not be generated."
+        )
+
+    monkeypatch.setattr(
+        ingestion,
+        "_find_existing_document_id",
+        fake_find_existing_document_id,
+    )
+
+    monkeypatch.setattr(
+        ingestion.embedding_provider,
+        "embed",
+        should_not_embed,
+    )
+
+    result = asyncio.run(
+        ingest_document(
+            organization_id=77,
+            title="Documento",
+            source="test",
+            text="conteudo duplicado",
+        )
+    )
+
+    assert captured["organization_id"] == 77
+    assert result.document_id == 321
+    assert result.duplicate is True
+    assert result.chunks_inserted == 0

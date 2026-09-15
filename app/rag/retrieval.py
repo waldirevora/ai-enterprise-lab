@@ -67,7 +67,9 @@ def _validate_classifications(
         "confidential",
     }
 
-    values = list(dict.fromkeys(classifications))
+    values = list(
+        dict.fromkeys(classifications)
+    )
 
     if not values:
         raise RagRetrievalError(
@@ -86,6 +88,7 @@ def _validate_classifications(
 
 async def _search_database(
     *,
+    organization_id: int,
     embedding: list[float],
     allowed_classifications: list[str],
     limit: int,
@@ -114,12 +117,14 @@ async def _search_database(
                 FROM rag_document_chunks c
                 JOIN rag_documents d
                     ON d.id = c.document_id
-                WHERE d.classification = ANY(%s::text[])
+                WHERE d.organization_id = %s
+                  AND d.classification = ANY(%s::text[])
                 ORDER BY c.embedding <=> %s::vector
                 LIMIT %s;
                 """,
                 (
                     vector,
+                    organization_id,
                     allowed_classifications,
                     vector,
                     limit,
@@ -147,10 +152,16 @@ async def _search_database(
 
 async def retrieve_chunks(
     *,
+    organization_id: int,
     query: str,
     allowed_classifications: Collection[str],
     limit: int = 5,
 ) -> list[RagSearchResult]:
+    if organization_id < 1:
+        raise RagRetrievalError(
+            "organization_id must be a positive integer."
+        )
+
     normalized_query = normalize_text(query)
 
     if not normalized_query:
@@ -172,6 +183,7 @@ async def retrieve_chunks(
             model=settings.ai_embedding_model,
             text=normalized_query,
         )
+
     except OllamaEmbeddingProviderError as exc:
         raise RagRetrievalError(
             str(exc)
@@ -179,6 +191,7 @@ async def retrieve_chunks(
 
     try:
         return await _search_database(
+            organization_id=organization_id,
             embedding=embedding,
             allowed_classifications=classifications,
             limit=limit,
