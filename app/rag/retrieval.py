@@ -1,18 +1,15 @@
 from dataclasses import dataclass
-from typing import Any, Collection
+from typing import Any, Iterable
 
 import psycopg
 
+from app.access.unit_grants import UnitAccessGrant
 from app.core.config import settings
-from app.db.postgres import (
-    DatabaseConnectionError,
-    build_postgres_dsn,
-)
+from app.db.postgres import build_postgres_dsn
 from app.providers.ollama_embeddings import (
     OllamaEmbeddingProvider,
     OllamaEmbeddingProviderError,
 )
-from app.rag.text_processing import normalize_text
 
 
 class RagRetrievalError(Exception):
@@ -39,12 +36,22 @@ embedding_provider = OllamaEmbeddingProvider(
 )
 
 
+_VALID_CLASSIFICATIONS = {
+    "public",
+    "internal",
+    "confidential",
+}
+
+
 def _vector_literal(
     embedding: list[float],
 ) -> str:
-    if len(embedding) != settings.ai_embedding_dimensions:
+    if (
+        len(embedding)
+        != settings.ai_embedding_dimensions
+    ):
         raise RagRetrievalError(
-            "Query embedding dimensions do not match "
+            "Embedding dimensions do not match "
             "the configured RAG dimensions."
         )
 
@@ -59,26 +66,21 @@ def _vector_literal(
 
 
 def _validate_classifications(
-    classifications: Collection[str],
-) -> list[str]:
-    valid = {
-        "public",
-        "internal",
-        "confidential",
-    }
-
-    values = list(
-        dict.fromkeys(classifications)
+    classifications: Iterable[str],
+) -> frozenset[str]:
+    values = frozenset(
+        classifications
     )
 
     if not values:
         raise RagRetrievalError(
-            "At least one allowed classification is required."
+            "At least one allowed classification "
+            "must be provided."
         )
 
-    invalid = set(values) - valid
-
-    if invalid:
+    if not values.issubset(
+        _VALID_CLASSIFICATIONS
+    ):
         raise RagRetrievalError(
             "Invalid allowed classification."
         )
@@ -86,52 +88,216 @@ def _validate_classifications(
     return values
 
 
+def _normalize_unit_grants(
+    unit_grants: tuple[
+        UnitAccessGrant,
+        ...,
+    ],
+) -> tuple[
+    tuple[int, frozenset[str]],
+    ...,
+]:
+    normalized: dict[
+        int,
+        frozenset[str],
+    ] = {}
+
+    for grant in unit_grants:
+        unit_id = (
+            grant.organizational_unit_id
+        )
+
+        if unit_id < 1:
+            raise RagRetrievalError(
+                "organizational_unit_id must be "
+                "a positive integer."
+            )
+
+        allowed = _validate_classifications(
+            grant.allowed_classifications
+        )
+
+        existing = normalized.get(
+            unit_id
+        )
+
+        if existing is None:
+            normalized[unit_id] = allowed
+
+        else:
+            # Defense in depth:
+            # duplicate grants for the same unit
+            # can only reduce permissions.
+            normalized[unit_id] = (
+                existing.intersection(
+                    allowed
+                )
+            )
+
+    return tuple(
+        (
+            unit_id,
+            allowed,
+        )
+        for unit_id, allowed
+        in sorted(
+            normalized.items()
+        )
+        if allowed
+    )
+
+
+def _build_scope_filter(
+    *,
+    corporate_allowed_classifications: (
+        frozenset[str]
+    ),
+    unit_grants: tuple[
+        UnitAccessGrant,
+        ...,
+    ],
+) -> tuple[
+    str,
+    list[Any],
+]:
+    clauses = [
+        """
+        (
+            d.organizational_unit_id IS NULL
+            AND d.classification
+                = ANY(%s::text[])
+        )
+        """
+    ]
+
+    params: list[Any] = [
+        sorted(
+            corporate_allowed_classifications
+        )
+    ]
+
+    normalized_grants = (
+        _normalize_unit_grants(
+            unit_grants
+        )
+    )
+
+    for (
+        organizational_unit_id,
+        allowed_classifications,
+    ) in normalized_grants:
+        clauses.append(
+            """
+            (
+                d.organizational_unit_id = %s
+                AND d.classification
+                    = ANY(%s::text[])
+            )
+            """
+        )
+
+        params.extend(
+            [
+                organizational_unit_id,
+                sorted(
+                    allowed_classifications
+                ),
+            ]
+        )
+
+    return (
+        "("
+        + " OR ".join(clauses)
+        + ")",
+        params,
+    )
+
+
 async def _search_database(
     *,
     organization_id: int,
     embedding: list[float],
-    allowed_classifications: list[str],
+    allowed_classifications: (
+        frozenset[str]
+        | set[str]
+    ),
     limit: int,
+    unit_grants: tuple[
+        UnitAccessGrant,
+        ...,
+    ] = (),
 ) -> list[RagSearchResult]:
-    vector = _vector_literal(embedding)
+    corporate_allowed = (
+        _validate_classifications(
+            allowed_classifications
+        )
+    )
 
-    async with await psycopg.AsyncConnection.connect(
-        build_postgres_dsn(),
-        connect_timeout=5,
-    ) as connection:
-        async with connection.cursor() as cursor:
-            await cursor.execute(
-                """
-                SELECT
-                    c.id,
-                    d.id,
-                    d.title,
-                    d.source,
-                    d.source_uri,
-                    d.classification,
-                    c.chunk_index,
-                    c.content,
-                    c.metadata,
-                    1 - (c.embedding <=> %s::vector)
-                        AS similarity
-                FROM rag_document_chunks c
-                JOIN rag_documents d
-                    ON d.id = c.document_id
-                WHERE d.organization_id = %s
-                  AND d.classification = ANY(%s::text[])
-                ORDER BY c.embedding <=> %s::vector
-                LIMIT %s;
-                """,
-                (
-                    vector,
-                    organization_id,
-                    allowed_classifications,
-                    vector,
-                    limit,
-                ),
-            )
+    scope_sql, scope_params = (
+        _build_scope_filter(
+            corporate_allowed_classifications=(
+                corporate_allowed
+            ),
+            unit_grants=unit_grants,
+        )
+    )
 
-            rows = await cursor.fetchall()
+    vector = _vector_literal(
+        embedding
+    )
+
+    sql = f"""
+        SELECT
+            c.id,
+            d.id,
+            d.title,
+            d.source,
+            d.source_uri,
+            d.classification,
+            c.chunk_index,
+            c.content,
+            c.metadata,
+            1 - (
+                c.embedding <=> %s::vector
+            ) AS similarity
+
+        FROM rag_document_chunks c
+
+        JOIN rag_documents d
+            ON d.id = c.document_id
+
+        WHERE d.organization_id = %s
+          AND {scope_sql}
+
+        ORDER BY similarity DESC
+
+        LIMIT %s;
+    """
+
+    params: list[Any] = [
+        vector,
+        organization_id,
+        *scope_params,
+        limit,
+    ]
+
+    try:
+        async with await psycopg.AsyncConnection.connect(
+            build_postgres_dsn(),
+            connect_timeout=5,
+        ) as connection:
+            async with connection.cursor() as cursor:
+                await cursor.execute(
+                    sql,
+                    params,
+                )
+
+                rows = await cursor.fetchall()
+
+    except psycopg.Error as exc:
+        raise RagRetrievalError(
+            "Could not query RAG documents."
+        ) from exc
 
     return [
         RagSearchResult(
@@ -154,7 +320,14 @@ async def retrieve_chunks(
     *,
     organization_id: int,
     query: str,
-    allowed_classifications: Collection[str],
+    allowed_classifications: (
+        set[str]
+        | frozenset[str]
+    ),
+    unit_grants: tuple[
+        UnitAccessGrant,
+        ...,
+    ] = (),
     limit: int = 5,
 ) -> list[RagSearchResult]:
     if organization_id < 1:
@@ -162,26 +335,35 @@ async def retrieve_chunks(
             "organization_id must be a positive integer."
         )
 
-    normalized_query = normalize_text(query)
+    normalized_query = " ".join(
+        query.split()
+    )
 
     if not normalized_query:
         raise RagRetrievalError(
             "Search query is empty."
         )
 
-    if limit < 1 or limit > 20:
-        raise RagRetrievalError(
-            "Search limit must be between 1 and 20."
+    normalized_classifications = (
+        _validate_classifications(
+            allowed_classifications
         )
-
-    classifications = _validate_classifications(
-        allowed_classifications
     )
 
+    if limit < 1 or limit > 20:
+        raise RagRetrievalError(
+            "Search limit must be between "
+            "1 and 20."
+        )
+
     try:
-        embedding = await embedding_provider.embed(
-            model=settings.ai_embedding_model,
-            text=normalized_query,
+        embedding = (
+            await embedding_provider.embed(
+                model=(
+                    settings.ai_embedding_model
+                ),
+                text=normalized_query,
+            )
         )
 
     except OllamaEmbeddingProviderError as exc:
@@ -189,19 +371,26 @@ async def retrieve_chunks(
             str(exc)
         ) from exc
 
-    try:
+    # Preserve the original internal interface when
+    # there are no unit grants. Existing tests and
+    # callers can continue monkeypatching
+    # _search_database with the legacy signature.
+    if not unit_grants:
         return await _search_database(
             organization_id=organization_id,
             embedding=embedding,
-            allowed_classifications=classifications,
+            allowed_classifications=(
+                normalized_classifications
+            ),
             limit=limit,
         )
 
-    except (
-        psycopg.Error,
-        OSError,
-        DatabaseConnectionError,
-    ) as exc:
-        raise RagRetrievalError(
-            "Could not search the RAG database."
-        ) from exc
+    return await _search_database(
+        organization_id=organization_id,
+        embedding=embedding,
+        allowed_classifications=(
+            normalized_classifications
+        ),
+        unit_grants=unit_grants,
+        limit=limit,
+    )

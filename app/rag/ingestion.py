@@ -65,6 +65,7 @@ def _vector_literal(
 async def _find_existing_document_id(
     *,
     organization_id: int,
+    organizational_unit_id: int | None,
     source: str,
     content_hash: str,
 ) -> int | None:
@@ -78,11 +79,14 @@ async def _find_existing_document_id(
                 SELECT id
                 FROM rag_documents
                 WHERE organization_id = %s
+                  AND organizational_unit_id
+                      IS NOT DISTINCT FROM %s
                   AND source = %s
                   AND content_hash = %s;
                 """,
                 (
                     organization_id,
+                    organizational_unit_id,
                     source,
                     content_hash,
                 ),
@@ -96,9 +100,118 @@ async def _find_existing_document_id(
     return row[0]
 
 
+async def _insert_document(
+    *,
+    cursor,
+    organization_id: int,
+    organizational_unit_id: int | None,
+    created_by_principal_id: int | None,
+    title: str,
+    source: str,
+    source_uri: str | None,
+    classification: str,
+    content_hash: str,
+    metadata: dict[str, Any],
+) -> int | None:
+    values = (
+        organization_id,
+        organizational_unit_id,
+        created_by_principal_id,
+        title,
+        source,
+        source_uri,
+        classification,
+        content_hash,
+        Jsonb(metadata),
+    )
+
+    if organizational_unit_id is None:
+        await cursor.execute(
+            """
+            INSERT INTO rag_documents (
+                organization_id,
+                organizational_unit_id,
+                created_by_principal_id,
+                title,
+                source,
+                source_uri,
+                classification,
+                content_hash,
+                metadata
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+            ON CONFLICT (
+                organization_id,
+                source,
+                content_hash
+            )
+            WHERE organizational_unit_id IS NULL
+            DO NOTHING
+            RETURNING id;
+            """,
+            values,
+        )
+
+    else:
+        await cursor.execute(
+            """
+            INSERT INTO rag_documents (
+                organization_id,
+                organizational_unit_id,
+                created_by_principal_id,
+                title,
+                source,
+                source_uri,
+                classification,
+                content_hash,
+                metadata
+            )
+            VALUES (
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s,
+                %s
+            )
+            ON CONFLICT (
+                organization_id,
+                organizational_unit_id,
+                source,
+                content_hash
+            )
+            WHERE organizational_unit_id IS NOT NULL
+            DO NOTHING
+            RETURNING id;
+            """,
+            values,
+        )
+
+    row = await cursor.fetchone()
+
+    if row is None:
+        return None
+
+    return row[0]
+
+
 async def _persist_document(
     *,
     organization_id: int,
+    organizational_unit_id: int | None,
     created_by_principal_id: int | None,
     title: str,
     source: str,
@@ -113,61 +226,37 @@ async def _persist_document(
         connect_timeout=5,
     ) as connection:
         async with connection.cursor() as cursor:
-            await cursor.execute(
-                """
-                INSERT INTO rag_documents (
-                    organization_id,
-                    created_by_principal_id,
-                    title,
-                    source,
-                    source_uri,
-                    classification,
-                    content_hash,
-                    metadata
-                )
-                VALUES (
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s,
-                    %s
-                )
-                ON CONFLICT (
-                    organization_id,
-                    source,
-                    content_hash
-                )
-                DO NOTHING
-                RETURNING id;
-                """,
-                (
-                    organization_id,
-                    created_by_principal_id,
-                    title,
-                    source,
-                    source_uri,
-                    classification,
-                    content_hash,
-                    Jsonb(metadata),
+            document_id = await _insert_document(
+                cursor=cursor,
+                organization_id=organization_id,
+                organizational_unit_id=(
+                    organizational_unit_id
                 ),
+                created_by_principal_id=(
+                    created_by_principal_id
+                ),
+                title=title,
+                source=source,
+                source_uri=source_uri,
+                classification=classification,
+                content_hash=content_hash,
+                metadata=metadata,
             )
 
-            row = await cursor.fetchone()
-
-            if row is None:
+            if document_id is None:
                 await cursor.execute(
                     """
                     SELECT id
                     FROM rag_documents
                     WHERE organization_id = %s
+                      AND organizational_unit_id
+                          IS NOT DISTINCT FROM %s
                       AND source = %s
                       AND content_hash = %s;
                     """,
                     (
                         organization_id,
+                        organizational_unit_id,
                         source,
                         content_hash,
                     ),
@@ -181,8 +270,6 @@ async def _persist_document(
                     )
 
                 return existing[0], True
-
-            document_id = row[0]
 
             for chunk in prepared_chunks:
                 await cursor.execute(
@@ -226,6 +313,7 @@ async def ingest_document(
     source: str,
     text: str,
     classification: str = "internal",
+    organizational_unit_id: int | None = None,
     created_by_principal_id: int | None = None,
     source_uri: str | None = None,
     metadata: dict[str, Any] | None = None,
@@ -235,6 +323,15 @@ async def ingest_document(
     if organization_id < 1:
         raise RagIngestionError(
             "organization_id must be a positive integer."
+        )
+
+    if (
+        organizational_unit_id is not None
+        and organizational_unit_id < 1
+    ):
+        raise RagIngestionError(
+            "organizational_unit_id must be "
+            "a positive integer."
         )
 
     if classification not in {
@@ -260,9 +357,13 @@ async def ingest_document(
     try:
         existing_id = await _find_existing_document_id(
             organization_id=organization_id,
+            organizational_unit_id=(
+                organizational_unit_id
+            ),
             source=source,
             content_hash=content_hash,
         )
+
     except psycopg.Error as exc:
         raise RagIngestionError(
             "Could not query PostgreSQL."
@@ -313,6 +414,9 @@ async def ingest_document(
         document_id, duplicate = (
             await _persist_document(
                 organization_id=organization_id,
+                organizational_unit_id=(
+                    organizational_unit_id
+                ),
                 created_by_principal_id=(
                     created_by_principal_id
                 ),
