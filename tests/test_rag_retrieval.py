@@ -24,6 +24,23 @@ def test_invalid_organization_is_rejected():
         )
 
 
+def test_invalid_principal_is_rejected():
+    with pytest.raises(
+        RagRetrievalError,
+        match="principal_id must be a positive integer",
+    ):
+        asyncio.run(
+            retrieve_chunks(
+                organization_id=1,
+                principal_id=0,
+                query="teste",
+                allowed_classifications={
+                    "public"
+                },
+            )
+        )
+
+
 def test_empty_query_is_rejected():
     with pytest.raises(
         RagRetrievalError,
@@ -61,7 +78,9 @@ def test_invalid_classification_is_rejected():
             retrieve_chunks(
                 organization_id=1,
                 query="teste",
-                allowed_classifications={"secret"},
+                allowed_classifications={
+                    "secret"
+                },
             )
         )
 
@@ -75,7 +94,9 @@ def test_invalid_limit_is_rejected():
             retrieve_chunks(
                 organization_id=1,
                 query="teste",
-                allowed_classifications={"public"},
+                allowed_classifications={
+                    "public"
+                },
                 limit=21,
             )
         )
@@ -106,12 +127,15 @@ def test_successful_retrieval(
         captured["organization_id"] = (
             organization_id
         )
+
         captured["dimensions"] = len(
             embedding
         )
+
         captured["classifications"] = (
             allowed_classifications
         )
+
         captured["limit"] = limit
 
         return [
@@ -154,7 +178,12 @@ def test_successful_retrieval(
     )
 
     assert len(result) == 1
-    assert result[0].similarity == 0.91
+
+    assert (
+        result[0].similarity
+        == 0.91
+    )
+
     assert (
         result[0].classification
         == "internal"
@@ -165,8 +194,9 @@ def test_successful_retrieval(
         == 42
     )
 
-    assert captured["text"] == (
-        "pergunta empresarial"
+    assert (
+        captured["text"]
+        == "pergunta empresarial"
     )
 
     assert (
@@ -182,3 +212,78 @@ def test_successful_retrieval(
         "public",
         "internal",
     }
+
+
+def test_authenticated_retrieval_forwards_principal_id(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_embed(
+        *,
+        model,
+        text,
+    ):
+        return [0.1] * 1024
+
+    async def fake_search_database(
+        *,
+        organization_id,
+        embedding,
+        allowed_classifications,
+        principal_id,
+        limit,
+    ):
+        captured["organization_id"] = (
+            organization_id
+        )
+
+        captured["principal_id"] = (
+            principal_id
+        )
+
+        captured["limit"] = limit
+
+        return []
+
+    monkeypatch.setattr(
+        retrieval.embedding_provider,
+        "embed",
+        fake_embed,
+    )
+
+    monkeypatch.setattr(
+        retrieval,
+        "_search_database",
+        fake_search_database,
+    )
+
+    result = asyncio.run(
+        retrieve_chunks(
+            organization_id=42,
+            principal_id=77,
+            query="documento privado",
+            allowed_classifications={
+                "public",
+                "internal",
+            },
+            limit=4,
+        )
+    )
+
+    assert result == []
+
+    assert (
+        captured["organization_id"]
+        == 42
+    )
+
+    assert (
+        captured["principal_id"]
+        == 77
+    )
+
+    assert (
+        captured["limit"]
+        == 4
+    )

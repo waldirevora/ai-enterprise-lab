@@ -40,6 +40,22 @@ def test_invalid_classification_is_rejected():
         )
 
 
+def test_invalid_access_mode_is_rejected():
+    with pytest.raises(
+        RagIngestionError,
+        match="Invalid document access mode",
+    ):
+        asyncio.run(
+            ingest_document(
+                organization_id=1,
+                title="Teste",
+                source="test",
+                text="conteudo",
+                access_mode="private",
+            )
+        )
+
+
 def test_duplicate_document_skips_embeddings(
     monkeypatch,
 ):
@@ -162,6 +178,11 @@ def test_successful_ingestion(
         == 30
     )
 
+    assert (
+        captured["access_mode"]
+        == "inherited"
+    )
+
     prepared_chunks = captured[
         "prepared_chunks"
     ]
@@ -171,6 +192,72 @@ def test_successful_ingestion(
     assert len(
         prepared_chunks[0].embedding
     ) == 1024
+
+
+def test_restricted_access_mode_is_forwarded(
+    monkeypatch,
+):
+    captured = {}
+
+    async def fake_find_existing_document_id(
+        *,
+        organization_id,
+        organizational_unit_id,
+        source,
+        content_hash,
+    ):
+        return None
+
+    async def fake_embed(
+        *,
+        model,
+        text,
+    ):
+        return [0.1] * 1024
+
+    async def fake_persist_document(
+        **kwargs,
+    ):
+        captured.update(kwargs)
+
+        return 789, False
+
+    monkeypatch.setattr(
+        ingestion,
+        "_find_existing_document_id",
+        fake_find_existing_document_id,
+    )
+
+    monkeypatch.setattr(
+        ingestion.embedding_provider,
+        "embed",
+        fake_embed,
+    )
+
+    monkeypatch.setattr(
+        ingestion,
+        "_persist_document",
+        fake_persist_document,
+    )
+
+    result = asyncio.run(
+        ingest_document(
+            organization_id=1,
+            title="Documento Restrito",
+            source="test-restricted",
+            text="conteudo restrito",
+            classification="internal",
+            access_mode="restricted",
+        )
+    )
+
+    assert result.document_id == 789
+    assert result.duplicate is False
+
+    assert (
+        captured["access_mode"]
+        == "restricted"
+    )
 
 
 def test_vector_dimension_is_validated():

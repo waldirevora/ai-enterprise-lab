@@ -209,6 +209,16 @@ def test_authenticated_rag_uses_principal_context(
     )
 
     assert (
+        captured["principal_id"]
+        == context.principal_id
+    )
+
+    assert (
+        captured["principal_id"]
+        == 10
+    )
+
+    assert (
         captured["question_classification"]
         == "internal"
     )
@@ -279,6 +289,16 @@ def test_confidential_context_allows_all_levels(
     )
 
     assert (
+        captured["principal_id"]
+        == context.principal_id
+    )
+
+    assert (
+        captured["principal_id"]
+        == 10
+    )
+
+    assert (
         captured["question_classification"]
         == "confidential"
     )
@@ -313,6 +333,15 @@ def test_authenticated_client_cannot_choose_authority(
         "/v1/rag/generate-authenticated",
         json={
             "question": "teste",
+
+            #
+            # O cliente tenta escolher
+            # sua própria autoridade.
+            #
+            # Todos estes campos devem
+            # ser rejeitados pelo schema.
+            #
+            "principal_id": 999,
             "organization_id": 999,
             "allowed_classifications": [
                 "confidential"
@@ -403,6 +432,11 @@ def test_authenticated_rag_forwards_unit_grants(
         == 42
     )
 
+    assert (
+        captured["principal_id"]
+        == context.principal_id
+    )
+
 
 def test_authorized_explicit_unit_restricts_grants(
     monkeypatch,
@@ -435,6 +469,8 @@ def test_authorized_explicit_unit_restricts_grants(
     async def fake_load_unit_access_grants(
         received_context,
     ):
+        assert received_context is context
+
         return (
             financeiro,
             rh,
@@ -505,6 +541,11 @@ def test_authorized_explicit_unit_restricts_grants(
 
     assert captured["unit_grants"] == (
         financeiro,
+    )
+
+    assert (
+        captured["principal_id"]
+        == context.principal_id
     )
 
 

@@ -110,6 +110,7 @@ async def _insert_document(
     source: str,
     source_uri: str | None,
     classification: str,
+    access_mode: str,
     content_hash: str,
     metadata: dict[str, Any],
 ) -> int | None:
@@ -121,6 +122,7 @@ async def _insert_document(
         source,
         source_uri,
         classification,
+        access_mode,
         content_hash,
         Jsonb(metadata),
     )
@@ -136,10 +138,12 @@ async def _insert_document(
                 source,
                 source_uri,
                 classification,
+                access_mode,
                 content_hash,
                 metadata
             )
             VALUES (
+                %s,
                 %s,
                 %s,
                 %s,
@@ -173,10 +177,12 @@ async def _insert_document(
                 source,
                 source_uri,
                 classification,
+                access_mode,
                 content_hash,
                 metadata
             )
             VALUES (
+                %s,
                 %s,
                 %s,
                 %s,
@@ -217,6 +223,7 @@ async def _persist_document(
     source: str,
     source_uri: str | None,
     classification: str,
+    access_mode: str,
     content_hash: str,
     metadata: dict[str, Any],
     prepared_chunks: list[PreparedChunk],
@@ -239,6 +246,7 @@ async def _persist_document(
                 source=source,
                 source_uri=source_uri,
                 classification=classification,
+                access_mode=access_mode,
                 content_hash=content_hash,
                 metadata=metadata,
             )
@@ -313,6 +321,7 @@ async def ingest_document(
     source: str,
     text: str,
     classification: str = "internal",
+    access_mode: str = "inherited",
     organizational_unit_id: int | None = None,
     created_by_principal_id: int | None = None,
     source_uri: str | None = None,
@@ -343,19 +352,29 @@ async def ingest_document(
             "Invalid document classification."
         )
 
-    normalized = normalize_text(text)
+    if access_mode not in {
+        "inherited",
+        "restricted",
+    }:
+        raise RagIngestionError(
+            "Invalid document access mode."
+        )
 
-    if not normalized:
+    normalized_text = normalize_text(
+        text
+    )
+
+    if not normalized_text:
         raise RagIngestionError(
             "Document text is empty."
         )
 
     content_hash = calculate_content_hash(
-        normalized
+        normalized_text
     )
 
-    try:
-        existing_id = await _find_existing_document_id(
+    existing_document_id = (
+        await _find_existing_document_id(
             organization_id=organization_id,
             organizational_unit_id=(
                 organizational_unit_id
@@ -363,77 +382,80 @@ async def ingest_document(
             source=source,
             content_hash=content_hash,
         )
+    )
 
-    except psycopg.Error as exc:
-        raise RagIngestionError(
-            "Could not query PostgreSQL."
-        ) from exc
-
-    if existing_id is not None:
+    if existing_document_id is not None:
         return IngestionResult(
-            document_id=existing_id,
+            document_id=existing_document_id,
             content_hash=content_hash,
             chunks_inserted=0,
             duplicate=True,
         )
 
     chunks = chunk_text(
-        normalized,
+        normalized_text,
         chunk_size_words=chunk_size_words,
         overlap_words=overlap_words,
     )
 
-    prepared_chunks: list[PreparedChunk] = []
+    prepared_chunks: list[
+        PreparedChunk
+    ] = []
 
-    try:
-        for chunk in chunks:
-            embedding = await embedding_provider.embed(
-                model=settings.ai_embedding_model,
-                text=chunk.content,
-            )
-
-            prepared_chunks.append(
-                PreparedChunk(
-                    index=chunk.index,
-                    content=chunk.content,
-                    embedding=embedding,
-                    metadata={
-                        "word_count": chunk.word_count,
-                        "start_word": chunk.start_word,
-                        "end_word": chunk.end_word,
-                    },
+    for chunk in chunks:
+        try:
+            embedding = (
+                await embedding_provider.embed(
+                    model=(
+                        settings.ai_embedding_model
+                    ),
+                    text=chunk.content,
                 )
             )
 
-    except OllamaEmbeddingProviderError as exc:
-        raise RagIngestionError(
-            str(exc)
-        ) from exc
+        except OllamaEmbeddingProviderError as exc:
+            raise RagIngestionError(
+                str(exc)
+            ) from exc
 
-    try:
-        document_id, duplicate = (
-            await _persist_document(
-                organization_id=organization_id,
-                organizational_unit_id=(
-                    organizational_unit_id
-                ),
-                created_by_principal_id=(
-                    created_by_principal_id
-                ),
-                title=title,
-                source=source,
-                source_uri=source_uri,
-                classification=classification,
-                content_hash=content_hash,
-                metadata=metadata or {},
-                prepared_chunks=prepared_chunks,
+        prepared_chunks.append(
+            PreparedChunk(
+                index=chunk.index,
+                content=chunk.content,
+                embedding=embedding,
+                metadata={
+                    "word_count": (
+                        chunk.word_count
+                    ),
+                    "start_word": (
+                        chunk.start_word
+                    ),
+                    "end_word": (
+                        chunk.end_word
+                    ),
+                },
             )
         )
 
-    except psycopg.Error as exc:
-        raise RagIngestionError(
-            "Could not persist RAG document."
-        ) from exc
+    document_id, duplicate = (
+        await _persist_document(
+            organization_id=organization_id,
+            organizational_unit_id=(
+                organizational_unit_id
+            ),
+            created_by_principal_id=(
+                created_by_principal_id
+            ),
+            title=title,
+            source=source,
+            source_uri=source_uri,
+            classification=classification,
+            access_mode=access_mode,
+            content_hash=content_hash,
+            metadata=metadata or {},
+            prepared_chunks=prepared_chunks,
+        )
+    )
 
     return IngestionResult(
         document_id=document_id,

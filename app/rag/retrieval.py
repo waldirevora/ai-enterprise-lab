@@ -213,6 +213,67 @@ def _build_scope_filter(
     )
 
 
+def _build_acl_filter(
+    *,
+    principal_id: int | None,
+) -> tuple[
+    str,
+    list[Any],
+]:
+    #
+    # Sem principal autenticado:
+    #
+    # documentos restricted nunca podem
+    # entrar no conjunto candidato.
+    #
+    if principal_id is None:
+        return (
+            "d.access_mode = 'inherited'",
+            [],
+        )
+
+    if principal_id < 1:
+        raise RagRetrievalError(
+            "principal_id must be a positive integer."
+        )
+
+    #
+    # Com principal autenticado:
+    #
+    # inherited continua seguindo as camadas
+    # superiores normalmente.
+    #
+    # restricted exige ACL read ativa.
+    #
+    return (
+        """
+        (
+            d.access_mode = 'inherited'
+            OR (
+                d.access_mode = 'restricted'
+                AND EXISTS (
+                    SELECT 1
+                    FROM rag_document_acl_entries a
+                    WHERE a.organization_id
+                        = d.organization_id
+                      AND a.document_id
+                        = d.id
+                      AND a.principal_id
+                        = %s
+                      AND a.permission
+                        = 'read'
+                      AND a.status
+                        = 'active'
+                )
+            )
+        )
+        """,
+        [
+            principal_id,
+        ],
+    )
+
+
 async def _search_database(
     *,
     organization_id: int,
@@ -226,6 +287,7 @@ async def _search_database(
         UnitAccessGrant,
         ...,
     ] = (),
+    principal_id: int | None = None,
 ) -> list[RagSearchResult]:
     corporate_allowed = (
         _validate_classifications(
@@ -239,6 +301,12 @@ async def _search_database(
                 corporate_allowed
             ),
             unit_grants=unit_grants,
+        )
+    )
+
+    acl_sql, acl_params = (
+        _build_acl_filter(
+            principal_id=principal_id,
         )
     )
 
@@ -268,6 +336,7 @@ async def _search_database(
 
         WHERE d.organization_id = %s
           AND {scope_sql}
+          AND {acl_sql}
 
         ORDER BY similarity DESC
 
@@ -278,6 +347,7 @@ async def _search_database(
         vector,
         organization_id,
         *scope_params,
+        *acl_params,
         limit,
     ]
 
@@ -328,11 +398,20 @@ async def retrieve_chunks(
         UnitAccessGrant,
         ...,
     ] = (),
+    principal_id: int | None = None,
     limit: int = 5,
 ) -> list[RagSearchResult]:
     if organization_id < 1:
         raise RagRetrievalError(
             "organization_id must be a positive integer."
+        )
+
+    if (
+        principal_id is not None
+        and principal_id < 1
+    ):
+        raise RagRetrievalError(
+            "principal_id must be a positive integer."
         )
 
     normalized_query = " ".join(
@@ -371,10 +450,38 @@ async def retrieve_chunks(
             str(exc)
         ) from exc
 
-    # Preserve the original internal interface when
-    # there are no unit grants. Existing tests and
-    # callers can continue monkeypatching
-    # _search_database with the legacy signature.
+    #
+    # Preserve legacy internal call shapes
+    # whenever optional authorization data
+    # is absent.
+    #
+    # Isso mantém compatibilidade com mocks
+    # e callers anteriores.
+    #
+    if (
+        not unit_grants
+        and principal_id is None
+    ):
+        return await _search_database(
+            organization_id=organization_id,
+            embedding=embedding,
+            allowed_classifications=(
+                normalized_classifications
+            ),
+            limit=limit,
+        )
+
+    if principal_id is None:
+        return await _search_database(
+            organization_id=organization_id,
+            embedding=embedding,
+            allowed_classifications=(
+                normalized_classifications
+            ),
+            unit_grants=unit_grants,
+            limit=limit,
+        )
+
     if not unit_grants:
         return await _search_database(
             organization_id=organization_id,
@@ -382,6 +489,7 @@ async def retrieve_chunks(
             allowed_classifications=(
                 normalized_classifications
             ),
+            principal_id=principal_id,
             limit=limit,
         )
 
@@ -392,5 +500,6 @@ async def retrieve_chunks(
             normalized_classifications
         ),
         unit_grants=unit_grants,
+        principal_id=principal_id,
         limit=limit,
     )

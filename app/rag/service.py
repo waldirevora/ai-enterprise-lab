@@ -77,6 +77,7 @@ async def generate_rag_answer(
     question: str,
     question_classification: DataClassification,
     allowed_classifications: Collection[str],
+    principal_id: int | None = None,
     unit_grants: tuple[UnitAccessGrant, ...] = (),
     provider: ProviderName | None = None,
     external_approved: bool = False,
@@ -87,7 +88,45 @@ async def generate_rag_answer(
     num_ctx: int = 4096,
     max_output_tokens: int | None = None,
 ) -> RagGenerationResult:
-    if unit_grants:
+    #
+    # Preserve legacy internal call shapes whenever
+    # optional authorization context is absent.
+    #
+    # Public RAG:
+    #   principal_id=None
+    #   unit_grants=()
+    #
+    # Authenticated corporate-only RAG:
+    #   principal_id=<authenticated principal>
+    #   unit_grants=()
+    #
+    # Authenticated unit-aware RAG:
+    #   principal_id=<authenticated principal>
+    #   unit_grants=(...)
+    #
+    if (
+        principal_id is not None
+        and unit_grants
+    ):
+        results = await retrieve_chunks(
+            organization_id=organization_id,
+            principal_id=principal_id,
+            query=question,
+            allowed_classifications=allowed_classifications,
+            unit_grants=unit_grants,
+            limit=retrieval_limit,
+        )
+
+    elif principal_id is not None:
+        results = await retrieve_chunks(
+            organization_id=organization_id,
+            principal_id=principal_id,
+            query=question,
+            allowed_classifications=allowed_classifications,
+            limit=retrieval_limit,
+        )
+
+    elif unit_grants:
         results = await retrieve_chunks(
             organization_id=organization_id,
             query=question,
@@ -97,9 +136,14 @@ async def generate_rag_answer(
         )
 
     else:
-        # Mantém compatibilidade com o contrato anterior
-        # e garante que chamadas sem grants permaneçam
-        # restritas a documentos corporate.
+        #
+        # Mantém compatibilidade com o contrato
+        # histórico do endpoint público.
+        #
+        # Sem principal:
+        # retrieve_chunks() aplica ACL public/no-principal
+        # e somente documentos inherited podem entrar.
+        #
         results = await retrieve_chunks(
             organization_id=organization_id,
             query=question,
