@@ -186,8 +186,16 @@ async def generate_authenticated_rag(
         #    o RAG pode ser executado.
         #
         result = await generate_rag_answer(
+            #
+            # Tenant e principal vêm exclusivamente
+            # da credencial autenticada.
+            #
             organization_id=(
                 context.organization_id
+            ),
+
+            principal_id=(
+                context.principal_id
             ),
 
             question=request.question,
