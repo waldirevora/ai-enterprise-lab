@@ -3,6 +3,7 @@ from fastapi import (
     status,
 )
 
+from app.audit.logger import emit_audit_event
 from app.rate_limit.limiter import (
     RateLimitUnavailableError,
     consume_token,
@@ -26,6 +27,19 @@ async def enforce_rate_limit(
         )
 
     except RateLimitUnavailableError as exc:
+        emit_audit_event(
+            event_type=(
+                "rate_limit.unavailable"
+            ),
+            outcome="unavailable",
+            reason_code=(
+                "rate_limit_backend_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_503_SERVICE_UNAVAILABLE
@@ -36,6 +50,22 @@ async def enforce_rate_limit(
         ) from exc
 
     if not decision.allowed:
+        emit_audit_event(
+            event_type=(
+                "rate_limit.denied"
+            ),
+            outcome="denied",
+            reason_code=(
+                "rate_limit_exceeded"
+            ),
+            metadata={
+                "status_code": 429,
+                "retry_after_seconds": (
+                    decision.retry_after_seconds
+                ),
+            },
+        )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_429_TOO_MANY_REQUESTS

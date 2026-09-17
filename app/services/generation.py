@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 
+from app.audit.logger import emit_audit_event
 from app.core.config import ProviderName, settings
 from app.policies.provider_policy import evaluate_provider_policy
 from app.policies.request_limits import validate_request_limits
@@ -40,6 +41,40 @@ async def generate_text(
         data_classification=request.data_classification,
         external_approved=request.external_approved,
     )
+
+    if provider_name == "external_deep":
+        if policy.allowed:
+            emit_audit_event(
+                event_type=(
+                    "provider.external.allowed"
+                ),
+                outcome="allowed",
+                provider=provider_name,
+                classification=(
+                    request.data_classification
+                ),
+                reason_code=(
+                    policy.reason_code
+                ),
+            )
+
+        else:
+            emit_audit_event(
+                event_type=(
+                    "provider.external.blocked"
+                ),
+                outcome="denied",
+                provider=provider_name,
+                classification=(
+                    request.data_classification
+                ),
+                reason_code=(
+                    policy.reason_code
+                ),
+                metadata={
+                    "status_code": 403,
+                },
+            )
 
     if not policy.allowed:
         raise HTTPException(
