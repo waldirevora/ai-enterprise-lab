@@ -72,7 +72,7 @@ def test_rejects_missing_api_key():
     ):
         asyncio.run(
             provider.generate(
-                model="deepseek-v4-pro",
+                model="deepseek-flash",
                 prompt="teste",
                 max_output_tokens=64,
             )
@@ -119,7 +119,7 @@ def test_successful_request(
 
     result = asyncio.run(
         provider.generate(
-            model="deepseek-v4-pro",
+            model="deepseek-flash",
             prompt="teste",
             max_output_tokens=64,
         )
@@ -136,7 +136,7 @@ def test_successful_request(
         "Bearer test-key"
     )
 
-    assert captured["json"]["model"] == "deepseek-v4-pro"
+    assert captured["json"]["model"] == "deepseek-flash"
     assert captured["json"]["max_tokens"] == 64
 
     assert captured["json"]["thinking"] == {
@@ -174,7 +174,7 @@ def test_authentication_error_is_sanitized(
     ):
         asyncio.run(
             provider.generate(
-                model="deepseek-v4-pro",
+                model="deepseek-flash",
                 prompt="teste",
                 max_output_tokens=64,
             )
@@ -209,7 +209,7 @@ def test_timeout_error_is_sanitized(
     ):
         asyncio.run(
             provider.generate(
-                model="deepseek-v4-pro",
+                model="deepseek-flash",
                 prompt="teste",
                 max_output_tokens=64,
             )

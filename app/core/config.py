@@ -79,7 +79,7 @@ class Settings(BaseSettings):
 
     external_ai_enabled: bool = False
     external_ai_provider: str = "deepseek"
-    external_ai_model: str = ""
+    external_ai_model: str = "deepseek-flash"
 
     deepseek_api_key: str = ""
     deepseek_base_url: str = (
@@ -90,15 +90,15 @@ class Settings(BaseSettings):
     deepseek_reasoning_effort: str = "high"
 
     deepseek_price_cache_hit_offpeak_per_m: float = (
-        0.022
+        0.003
     )
 
     deepseek_price_cache_miss_offpeak_per_m: float = (
-        0.66
+        0.15
     )
 
     deepseek_price_output_offpeak_per_m: float = (
-        1.98
+        0.60
     )
 
     deepseek_peak_multiplier: float = 2.0
