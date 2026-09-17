@@ -5,11 +5,11 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
 
       N8N_DB_NAME: ${N8N_DB_NAME}
       N8N_DB_USER: ${N8N_DB_USER}
-      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:?N8N_DB_PASSWORD is required}
 
     ports:
       - "127.0.0.1:5432:5432"
@@ -17,6 +17,8 @@ services:
     volumes:
       - postgres_data_pg17:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
+
+    restart: unless-stopped
 
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
@@ -28,7 +30,7 @@ services:
     image: redis:8.10.1-alpine
 
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
 
     command:
       - sh
@@ -70,9 +72,9 @@ services:
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME}
       DB_POSTGRESDB_USER: ${N8N_DB_USER}
-      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD}
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:?N8N_DB_PASSWORD is required}
 
-      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required}
 
       N8N_HOST: ${N8N_HOST}
       N8N_PORT: ${N8N_PORT}

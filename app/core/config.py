@@ -1,9 +1,18 @@
 from typing import Literal
 
+
+from pydantic import model_validator
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
 )
+
+
+AppEnvironment = Literal[
+    "development",
+    "test",
+    "production",
+]
 
 
 ProviderName = Literal[
@@ -13,11 +22,29 @@ ProviderName = Literal[
 ]
 
 
+_LOCAL_ONLY_HOSTS = frozenset(
+    {
+        "localhost",
+        "127.0.0.1",
+        "::1",
+        "testserver",
+    }
+)
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
+    )
+
+    app_env: AppEnvironment = "development"
+
+    allowed_hosts: tuple[str, ...] = (
+        "localhost",
+        "127.0.0.1",
+        "testserver",
     )
 
     ai_default_organization_slug: str = (
@@ -102,6 +129,74 @@ class Settings(BaseSettings):
     )
 
     deepseek_peak_multiplier: float = 2.0
+
+
+    @model_validator(mode="after")
+    def validate_security_configuration(
+        self,
+    ) -> "Settings":
+        if (
+            self.external_ai_enabled
+            and not self.deepseek_api_key.strip()
+        ):
+            raise ValueError(
+                "DEEPSEEK_API_KEY is required "
+                "when external AI is enabled."
+            )
+
+        if self.app_env != "production":
+            return self
+
+        if not self.rate_limit_enabled:
+            raise ValueError(
+                "RATE_LIMIT_ENABLED must be true "
+                "in production."
+            )
+
+        if not self.postgres_password.strip():
+            raise ValueError(
+                "POSTGRES_PASSWORD is required "
+                "in production."
+            )
+
+        if (
+            self.rate_limit_enabled
+            and not self.redis_password.strip()
+        ):
+            raise ValueError(
+                "REDIS_PASSWORD is required "
+                "in production when rate limiting "
+                "is enabled."
+            )
+
+        normalized_hosts = tuple(
+            host.strip().lower()
+            for host in self.allowed_hosts
+            if host.strip()
+        )
+
+        if any(
+            "*" in host
+            for host in normalized_hosts
+        ):
+            raise ValueError(
+                "Production ALLOWED_HOSTS "
+                "must not contain wildcards."
+            )
+
+        deployment_hosts = tuple(
+            host
+            for host in normalized_hosts
+            if host not in _LOCAL_ONLY_HOSTS
+        )
+
+        if not deployment_hosts:
+            raise ValueError(
+                "Production ALLOWED_HOSTS must "
+                "include an explicit deployment host."
+            )
+
+        return self
 
 
 settings = Settings()

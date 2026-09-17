@@ -61,6 +61,26 @@ async def _resolve_public_organization_id() -> int:
         ) from exc
 
 
+def _rag_service_http_exception(
+    exc: RagServiceError,
+) -> HTTPException:
+    if (
+        str(exc)
+        == "No authorized RAG context was found."
+    ):
+        return HTTPException(
+            status_code=404,
+            detail=(
+                "No authorized RAG context was found."
+            ),
+        )
+
+    return HTTPException(
+        status_code=503,
+        detail="RAG service unavailable.",
+    )
+
+
 def _build_response(
     result: RagGenerationResult,
 ) -> RagGenerateResponse:
@@ -191,9 +211,8 @@ async def generate_public_rag(
         )
 
     except RagServiceError as exc:
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
+        raise _rag_service_http_exception(
+            exc
         ) from exc
 
     return _build_response(result)
@@ -379,9 +398,8 @@ async def generate_authenticated_rag(
                 },
             )
 
-        raise HTTPException(
-            status_code=404,
-            detail=str(exc),
+        raise _rag_service_http_exception(
+            exc
         ) from exc
 
     emit_audit_event(

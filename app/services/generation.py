@@ -108,7 +108,9 @@ async def generate_text(
         except OllamaProviderError as exc:
             raise HTTPException(
                 status_code=503,
-                detail=str(exc),
+                detail=(
+                    "AI provider service unavailable."
+                ),
             ) from exc
 
         total_duration = result.get("total_duration")
@@ -137,7 +139,9 @@ async def generate_text(
         except DeepSeekProviderError as exc:
             raise HTTPException(
                 status_code=503,
-                detail=str(exc),
+                detail=(
+                    "AI provider service unavailable."
+                ),
             ) from exc
 
         usage = result.get("usage", {})
