@@ -1,9 +1,12 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from app.access import (
+    dependencies as access_dependencies,
+)
 from app.access.context import PrincipalContext
 from app.access.dependencies import (
-    require_principal_context,
+    require_rate_limited_principal_context,
 )
 from app.access.unit_grants import (
     UnitAccessGrant,
@@ -16,6 +19,9 @@ from app.access.unit_scope import (
 )
 from app.api import rag as rag_api
 from app.main import app
+from app.rate_limit.models import (
+    RateLimitDecision,
+)
 from app.rag.context_builder import RagContext
 from app.rag.retrieval import RagSearchResult
 from app.rag.service import RagGenerationResult
@@ -32,6 +38,26 @@ def clear_dependency_overrides():
     yield
 
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def allow_authenticated_rate_limit(
+    monkeypatch,
+):
+    async def fake_enforce_rate_limit(
+        **kwargs,
+    ):
+        return RateLimitDecision(
+            allowed=True,
+            remaining=999,
+            retry_after_seconds=0,
+        )
+
+    monkeypatch.setattr(
+        access_dependencies,
+        "enforce_rate_limit",
+        fake_enforce_rate_limit,
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -161,7 +187,7 @@ def test_authenticated_rag_uses_principal_context(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     captured = {}
@@ -253,7 +279,7 @@ def test_confidential_context_allows_all_levels(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     captured = {}
@@ -326,7 +352,7 @@ def test_authenticated_client_cannot_choose_authority(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     response = client.post(
@@ -378,7 +404,7 @@ def test_authenticated_rag_forwards_unit_grants(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     captured = {}
@@ -463,7 +489,7 @@ def test_authorized_explicit_unit_restricts_grants(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     async def fake_load_unit_access_grants(
@@ -558,7 +584,7 @@ def test_unauthorized_unit_scope_returns_404_before_rag(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     async def fake_resolve_unit_scope(
@@ -624,7 +650,7 @@ def test_zero_grants_still_runs_scope_guard(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     captured = {}
@@ -684,7 +710,7 @@ def test_unit_scope_unavailable_returns_503(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     async def fake_resolve_unit_scope(
@@ -734,7 +760,7 @@ def test_unit_authorization_unavailable_returns_503(
         return context
 
     app.dependency_overrides[
-        require_principal_context
+        require_rate_limited_principal_context
     ] = fake_dependency
 
     async def fake_load_unit_access_grants(

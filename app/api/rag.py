@@ -2,11 +2,13 @@ from fastapi import (
     APIRouter,
     Depends,
     HTTPException,
+    Request,
+    status,
 )
 
 from app.access.context import PrincipalContext
 from app.access.dependencies import (
-    require_principal_context,
+    require_rate_limited_principal_context,
 )
 from app.access.organizations import (
     OrganizationResolutionError,
@@ -22,6 +24,11 @@ from app.access.unit_scope import (
     resolve_unit_scope,
 )
 from app.core.config import settings
+from app.rate_limit.http import enforce_rate_limit
+from app.rate_limit.origin import (
+    RateLimitOriginError,
+    build_origin_key,
+)
 from app.rag.schemas import (
     RagCitation,
     RagGenerateRequest,
@@ -96,7 +103,40 @@ def _build_response(
 )
 async def generate_public_rag(
     request: RagGenerateRequest,
+    http_request: Request,
 ) -> RagGenerateResponse:
+    #
+    # Rate limit público ocorre antes de
+    # resolver organization, retrieval e LLM.
+    #
+    try:
+        rate_limit_key = build_origin_key(
+            namespace="public-rag",
+            request=http_request,
+        )
+
+    except RateLimitOriginError as exc:
+        raise HTTPException(
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            detail=(
+                "Rate limit service unavailable."
+            ),
+        ) from exc
+
+    await enforce_rate_limit(
+        key=rate_limit_key,
+        rate_per_minute=(
+            settings
+            .rate_limit_public_rag_per_minute
+        ),
+        burst=(
+            settings
+            .rate_limit_public_rag_burst
+        ),
+    )
+
     organization_id = (
         await _resolve_public_organization_id()
     )
@@ -106,9 +146,11 @@ async def generate_public_rag(
             organization_id=organization_id,
             question=request.question,
 
+            #
             # Endpoint público permanece
             # estritamente public-only e
             # corporate-only.
+            #
             question_classification="public",
             allowed_classifications={
                 "public"
@@ -150,7 +192,7 @@ async def generate_public_rag(
 async def generate_authenticated_rag(
     request: RagGenerateRequest,
     context: PrincipalContext = Depends(
-        require_principal_context
+        require_rate_limited_principal_context
     ),
 ) -> RagGenerateResponse:
     try:
@@ -163,17 +205,7 @@ async def generate_authenticated_rag(
 
         #
         # 2. Resolve deterministicamente
-        #    referências explícitas a units.
-        #
-        # Exemplos:
-        #
-        # Financeiro pergunta RH sem grant:
-        # → deny aqui
-        # → retrieval não roda
-        # → LLM não roda
-        #
-        # Financeiro pergunta Financeiro:
-        # → grants são reduzidos para Financeiro
+        # referências explícitas a units.
         #
         scope_decision = await resolve_unit_scope(
             context=context,
@@ -183,13 +215,9 @@ async def generate_authenticated_rag(
 
         #
         # 3. Só depois do authorization scope
-        #    o RAG pode ser executado.
+        # o RAG pode ser executado.
         #
         result = await generate_rag_answer(
-            #
-            # Tenant e principal vêm exclusivamente
-            # da credencial autenticada.
-            #
             organization_id=(
                 context.organization_id
             ),
@@ -233,11 +261,6 @@ async def generate_authenticated_rag(
         )
 
     except UnitScopeDeniedError as exc:
-        #
-        # Resposta propositalmente genérica.
-        # Não revela se a unit existe ou se
-        # apenas não está autorizada.
-        #
         raise HTTPException(
             status_code=404,
             detail=(
