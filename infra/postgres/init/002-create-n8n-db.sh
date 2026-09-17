@@ -3,10 +3,11 @@ set -euo pipefail
 
 psql \
   --username "$POSTGRES_USER" \
-  --dbname "$POSTGRES_DB" \
-  --set=n8n_user="$N8N_DB_USER" \
-  --set=n8n_password="$N8N_DB_PASSWORD" \
-  --set=n8n_database="$N8N_DB_NAME" <<'EOSQL'
+  --dbname "$POSTGRES_DB" <<'EOSQL'
+
+\getenv n8n_user N8N_DB_USER
+\getenv n8n_password N8N_DB_PASSWORD
+\getenv n8n_database N8N_DB_NAME
 
 SELECT format(
   'CREATE ROLE %I LOGIN PASSWORD %L',

@@ -4,6 +4,9 @@ from fastapi import (
     Request,
     status,
 )
+from starlette.middleware.trustedhost import (
+    TrustedHostMiddleware,
+)
 
 from app.api.rag import router as rag_router
 from app.audit.logger import emit_audit_event
@@ -11,7 +14,7 @@ from app.audit.middleware import (
     AuditRequestContextMiddleware,
 )
 from app.core.config import settings
-from app.providers.catalog import get_provider_catalog
+from app.providers.catalog import get_public_provider_catalog
 from app.rate_limit.http import enforce_rate_limit
 from app.rate_limit.origin import (
     RateLimitOriginError,
@@ -21,12 +24,49 @@ from app.schemas import (
     GenerateRequest,
     GenerateResponse,
 )
+from app.security.headers import (
+    SecurityHeadersMiddleware,
+)
 from app.services.generation import generate_text
 
 
-app = FastAPI(
-    title="AI Enterprise Lab Gateway",
-    version="0.1.0",
+def _build_fastapi_app() -> FastAPI:
+    docs_enabled = (
+        settings.app_env != "production"
+    )
+
+    return FastAPI(
+        title="AI Enterprise Lab Gateway",
+        version="0.1.0",
+        docs_url=(
+            "/docs"
+            if docs_enabled
+            else None
+        ),
+        redoc_url=(
+            "/redoc"
+            if docs_enabled
+            else None
+        ),
+        openapi_url=(
+            "/openapi.json"
+            if docs_enabled
+            else None
+        ),
+    )
+
+
+app = _build_fastapi_app()
+
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=list(
+        settings.allowed_hosts
+    ),
+)
+
+app.add_middleware(
+    SecurityHeadersMiddleware
 )
 
 app.add_middleware(
@@ -45,7 +85,7 @@ def health() -> dict[str, str]:
 
 @app.get("/v1/providers")
 def providers() -> dict:
-    return get_provider_catalog()
+    return get_public_provider_catalog()
 
 
 @app.post(

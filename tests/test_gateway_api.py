@@ -54,7 +54,7 @@ def test_health_endpoint():
     }
 
 
-def test_provider_catalog_does_not_expose_api_key():
+def test_provider_catalog_exposes_only_public_metadata():
     response = client.get(
         "/v1/providers"
     )
@@ -63,31 +63,30 @@ def test_provider_catalog_does_not_expose_api_key():
 
     body = response.json()
 
-    assert body["default"] == "local_fast"
+    assert body == {
+        "default": "local_fast",
+        "providers": {
+            "local_fast": {
+                "enabled": True,
+            },
+            "local_deep": {
+                "enabled": True,
+            },
+            "external_deep": {
+                "enabled": (
+                    settings.external_ai_enabled
+                ),
+            },
+        },
+    }
 
-    assert (
-        "local_fast"
-        in body["providers"]
-    )
+    serialized = response.text.lower()
 
-    assert (
-        "local_deep"
-        in body["providers"]
-    )
-
-    assert (
-        "external_deep"
-        in body["providers"]
-    )
-
-    serialized = (
-        response.text.lower()
-    )
-
-    assert (
-        "api_key"
-        not in serialized
-    )
+    assert "backend" not in serialized
+    assert "model" not in serialized
+    assert "ollama" not in serialized
+    assert "deepseek" not in serialized
+    assert "api_key" not in serialized
 
     if settings.deepseek_api_key:
         assert (

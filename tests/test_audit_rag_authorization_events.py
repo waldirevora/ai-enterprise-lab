@@ -495,13 +495,16 @@ def test_other_rag_service_error_is_not_misclassified(
         },
     )
 
-    assert response.status_code == 404
+    assert response.status_code == 503
 
     assert response.json() == {
-        "detail": (
-            "Authorized RAG context is empty."
-        )
+        "detail": "RAG service unavailable."
     }
+
+    assert (
+        "Authorized RAG context is empty."
+        not in response.text
+    )
 
     assert events == []
 

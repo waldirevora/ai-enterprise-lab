@@ -27,5 +27,22 @@ def get_provider_catalog() -> dict:
     }
 
 
+def get_public_provider_catalog() -> dict:
+    catalog = get_provider_catalog()
+
+    return {
+        "default": catalog["default"],
+        "providers": {
+            provider_name: {
+                "enabled": provider_config["enabled"],
+            }
+            for (
+                provider_name,
+                provider_config,
+            ) in catalog["providers"].items()
+        },
+    }
+
+
 def provider_exists(provider: ProviderName) -> bool:
     return provider in get_provider_catalog()["providers"]
