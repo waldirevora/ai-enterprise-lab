@@ -52,17 +52,17 @@ def test_estimates_off_peak_cost(monkeypatch):
     monkeypatch.setattr(
         settings,
         "deepseek_price_cache_hit_offpeak_per_m",
-        0.022,
+        0.003,
     )
     monkeypatch.setattr(
         settings,
         "deepseek_price_cache_miss_offpeak_per_m",
-        0.66,
+        0.15,
     )
     monkeypatch.setattr(
         settings,
         "deepseek_price_output_offpeak_per_m",
-        1.98,
+        0.60,
     )
 
     now = datetime(
@@ -84,7 +84,7 @@ def test_estimates_off_peak_cost(monkeypatch):
 
     assert result.pricing_tier == "off_peak"
     assert result.estimated_cost_usd == pytest.approx(
-        0.00013926
+        0.00003765
     )
 
 
@@ -107,7 +107,7 @@ def test_uses_prompt_tokens_as_cache_miss_fallback():
     )
 
     assert result.estimated_cost_usd == pytest.approx(
-        0.00013926
+        0.00003765
     )
 
 
@@ -137,5 +137,5 @@ def test_peak_cost_uses_multiplier(monkeypatch):
 
     assert result.pricing_tier == "peak"
     assert result.estimated_cost_usd == pytest.approx(
-        0.00027852
+        0.00007530
     )
