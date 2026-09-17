@@ -6,6 +6,10 @@ from fastapi import (
 )
 
 from app.api.rag import router as rag_router
+from app.audit.logger import emit_audit_event
+from app.audit.middleware import (
+    AuditRequestContextMiddleware,
+)
 from app.core.config import settings
 from app.providers.catalog import get_provider_catalog
 from app.rate_limit.http import enforce_rate_limit
@@ -23,6 +27,10 @@ from app.services.generation import generate_text
 app = FastAPI(
     title="AI Enterprise Lab Gateway",
     version="0.1.0",
+)
+
+app.add_middleware(
+    AuditRequestContextMiddleware
 )
 
 app.include_router(rag_router)
@@ -55,6 +63,19 @@ async def generate(
         )
 
     except RateLimitOriginError as exc:
+        emit_audit_event(
+            event_type=(
+                "rate_limit.unavailable"
+            ),
+            outcome="unavailable",
+            reason_code=(
+                "rate_limit_origin_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         #
         # Fail closed.
         #

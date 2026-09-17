@@ -13,6 +13,7 @@ from app.access.authentication import (
     authenticate_api_key,
 )
 from app.access.context import PrincipalContext
+from app.audit.logger import emit_audit_event
 from app.core.config import settings
 from app.rate_limit.http import (
     enforce_rate_limit,
@@ -63,19 +64,56 @@ async def require_principal_context(
         ),
     ] = None,
 ) -> PrincipalContext:
-    token = _extract_bearer_token(
-        authorization
-    )
+    try:
+        token = _extract_bearer_token(
+            authorization
+        )
+
+    except HTTPException:
+        emit_audit_event(
+            event_type="auth.failure",
+            outcome="failure",
+            reason_code=(
+                "credential_missing_or_malformed"
+            ),
+            metadata={
+                "status_code": 401,
+            },
+        )
+
+        raise
 
     try:
-        return await authenticate_api_key(
+        context = await authenticate_api_key(
             token
         )
 
     except AuthenticationError as exc:
+        emit_audit_event(
+            event_type="auth.failure",
+            outcome="failure",
+            reason_code=(
+                "credential_invalid"
+            ),
+            metadata={
+                "status_code": 401,
+            },
+        )
+
         raise _unauthorized_exception() from exc
 
     except AuthenticationUnavailableError as exc:
+        emit_audit_event(
+            event_type="auth.unavailable",
+            outcome="unavailable",
+            reason_code=(
+                "authentication_backend_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_503_SERVICE_UNAVAILABLE
@@ -84,6 +122,25 @@ async def require_principal_context(
                 "Authentication service unavailable."
             ),
         ) from exc
+
+    emit_audit_event(
+        event_type="auth.success",
+        outcome="success",
+        organization_id=(
+            context.organization_id
+        ),
+        principal_id=(
+            context.principal_id
+        ),
+        reason_code=(
+            "credential_valid"
+        ),
+        metadata={
+            "status_code": 200,
+        },
+    )
+
+    return context
 
 
 async def require_rate_limited_principal_context(
@@ -111,6 +168,19 @@ async def require_rate_limited_principal_context(
         )
 
     except RateLimitOriginError as exc:
+        emit_audit_event(
+            event_type=(
+                "rate_limit.unavailable"
+            ),
+            outcome="unavailable",
+            reason_code=(
+                "rate_limit_origin_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_503_SERVICE_UNAVAILABLE

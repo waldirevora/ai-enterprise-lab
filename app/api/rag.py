@@ -7,6 +7,7 @@ from fastapi import (
 )
 
 from app.access.context import PrincipalContext
+from app.audit.logger import emit_audit_event
 from app.access.dependencies import (
     require_rate_limited_principal_context,
 )
@@ -116,6 +117,19 @@ async def generate_public_rag(
         )
 
     except RateLimitOriginError as exc:
+        emit_audit_event(
+            event_type=(
+                "rate_limit.unavailable"
+            ),
+            outcome="unavailable",
+            reason_code=(
+                "rate_limit_origin_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         raise HTTPException(
             status_code=(
                 status.HTTP_503_SERVICE_UNAVAILABLE
@@ -261,6 +275,25 @@ async def generate_authenticated_rag(
         )
 
     except UnitScopeDeniedError as exc:
+        emit_audit_event(
+            event_type=(
+                "authorization.unit_scope_denied"
+            ),
+            outcome="denied",
+            organization_id=(
+                context.organization_id
+            ),
+            principal_id=(
+                context.principal_id
+            ),
+            reason_code=(
+                "unit_scope_denied"
+            ),
+            metadata={
+                "status_code": 404,
+            },
+        )
+
         raise HTTPException(
             status_code=404,
             detail=(
@@ -269,6 +302,25 @@ async def generate_authenticated_rag(
         ) from exc
 
     except UnitScopeUnavailableError as exc:
+        emit_audit_event(
+            event_type=(
+                "authorization.unit_scope_unavailable"
+            ),
+            outcome="unavailable",
+            organization_id=(
+                context.organization_id
+            ),
+            principal_id=(
+                context.principal_id
+            ),
+            reason_code=(
+                "unit_scope_backend_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         raise HTTPException(
             status_code=503,
             detail=(
@@ -277,6 +329,25 @@ async def generate_authenticated_rag(
         ) from exc
 
     except UnitGrantUnavailableError as exc:
+        emit_audit_event(
+            event_type=(
+                "authorization.unit_grants_unavailable"
+            ),
+            outcome="unavailable",
+            organization_id=(
+                context.organization_id
+            ),
+            principal_id=(
+                context.principal_id
+            ),
+            reason_code=(
+                "unit_grants_backend_unavailable"
+            ),
+            metadata={
+                "status_code": 503,
+            },
+        )
+
         raise HTTPException(
             status_code=503,
             detail=(
@@ -285,9 +356,60 @@ async def generate_authenticated_rag(
         ) from exc
 
     except RagServiceError as exc:
+        if (
+            str(exc)
+            == "No authorized RAG context was found."
+        ):
+            emit_audit_event(
+                event_type=(
+                    "rag.authorized_context_not_found"
+                ),
+                outcome="failure",
+                organization_id=(
+                    context.organization_id
+                ),
+                principal_id=(
+                    context.principal_id
+                ),
+                reason_code=(
+                    "authorized_context_not_found"
+                ),
+                metadata={
+                    "status_code": 404,
+                },
+            )
+
         raise HTTPException(
             status_code=404,
             detail=str(exc),
         ) from exc
+
+    emit_audit_event(
+        event_type=(
+            "rag.authenticated.success"
+        ),
+        outcome="success",
+        organization_id=(
+            context.organization_id
+        ),
+        principal_id=(
+            context.principal_id
+        ),
+        provider=(
+            result.generation.provider
+        ),
+        classification=(
+            result.effective_classification
+        ),
+        reason_code=(
+            "authenticated_rag_completed"
+        ),
+        metadata={
+            "status_code": 200,
+            "retrieved_chunks": len(
+                result.retrieved_chunks
+            ),
+        },
+    )
 
     return _build_response(result)
