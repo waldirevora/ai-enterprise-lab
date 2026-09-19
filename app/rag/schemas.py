@@ -54,6 +54,32 @@ class RagGenerateRequest(BaseModel):
     )
 
 
+class PublicRagCitation(BaseModel):
+    title: str
+    source: str
+
+
+class PublicRagGenerateResponse(BaseModel):
+    answer: str
+
+    provider: ProviderName
+    backend: str
+    model: str
+
+    effective_classification: DataClassification
+
+    citations: list[PublicRagCitation]
+
+    prompt_tokens: int | None = None
+    generated_tokens: int | None = None
+    reasoning_tokens: int | None = None
+
+    total_duration_ms: float | None = None
+
+    pricing_tier: str | None = None
+    estimated_cost_usd: float | None = None
+
+
 class RagCitation(BaseModel):
     document_id: int
     title: str

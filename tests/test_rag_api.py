@@ -195,25 +195,27 @@ def test_rag_response_does_not_expose_chunk_content(
         body["citations"]
     ) == 1
 
-    assert (
-        body["citations"][0]["title"]
-        == "Documento Publico"
-    )
-
-    assert (
-        body["citations"][0]["classification"]
-        == "public"
-    )
+    assert body["citations"][0] == {
+        "title": "Documento Publico",
+        "source": "public-test",
+    }
 
     assert (
         "CONTEUDO_INTERNO_DO_CHUNK"
         not in response.text
     )
 
-    assert (
-        "content"
-        not in body["citations"][0]
-    )
+    for key in (
+        "document_id",
+        "classification",
+        "chunk_index",
+        "similarity",
+        "source_uri",
+        "content",
+        "metadata",
+        "embedding",
+    ):
+        assert key not in body["citations"][0]
 
 
 def test_no_authorized_context_returns_404(
