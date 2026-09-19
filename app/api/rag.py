@@ -31,6 +31,8 @@ from app.rate_limit.origin import (
     build_origin_key,
 )
 from app.rag.schemas import (
+    PublicRagCitation,
+    PublicRagGenerateResponse,
     RagCitation,
     RagGenerateRequest,
     RagGenerateResponse,
@@ -81,6 +83,39 @@ def _rag_service_http_exception(
     )
 
 
+def _build_public_response(
+    result: RagGenerationResult,
+) -> PublicRagGenerateResponse:
+    generation = result.generation
+
+    citations = [
+        PublicRagCitation(
+            title=item.title,
+            source=item.source,
+        )
+        for item in result.retrieved_chunks
+    ]
+
+    return PublicRagGenerateResponse(
+        answer=generation.response,
+        provider=generation.provider,
+        backend=generation.backend,
+        model=generation.model,
+        effective_classification=(
+            result.effective_classification
+        ),
+        citations=citations,
+        prompt_tokens=generation.prompt_tokens,
+        generated_tokens=generation.generated_tokens,
+        reasoning_tokens=generation.reasoning_tokens,
+        total_duration_ms=generation.total_duration_ms,
+        pricing_tier=generation.pricing_tier,
+        estimated_cost_usd=(
+            generation.estimated_cost_usd
+        ),
+    )
+
+
 def _build_response(
     result: RagGenerationResult,
 ) -> RagGenerateResponse:
@@ -120,12 +155,12 @@ def _build_response(
 
 @router.post(
     "/generate",
-    response_model=RagGenerateResponse,
+    response_model=PublicRagGenerateResponse,
 )
 async def generate_public_rag(
     request: RagGenerateRequest,
     http_request: Request,
-) -> RagGenerateResponse:
+) -> PublicRagGenerateResponse:
     #
     # Rate limit público ocorre antes de
     # resolver organization, retrieval e LLM.
@@ -215,7 +250,7 @@ async def generate_public_rag(
             exc
         ) from exc
 
-    return _build_response(result)
+    return _build_public_response(result)
 
 
 @router.post(
