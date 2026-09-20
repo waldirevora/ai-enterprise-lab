@@ -8,6 +8,7 @@ from starlette.middleware.trustedhost import (
     TrustedHostMiddleware,
 )
 
+from app.api.agents import router as agents_router
 from app.api.rag import router as rag_router
 from app.audit.logger import emit_audit_event
 from app.audit.middleware import (
@@ -73,6 +74,7 @@ app.add_middleware(
     AuditRequestContextMiddleware
 )
 
+app.include_router(agents_router)
 app.include_router(rag_router)
 
 
