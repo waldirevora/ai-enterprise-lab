@@ -4,6 +4,9 @@ from fastapi import (
 )
 
 from app.audit.logger import emit_audit_event
+from app.observability.metrics import (
+    RATE_LIMIT_EVENTS_TOTAL,
+)
 from app.rate_limit.limiter import (
     RateLimitUnavailableError,
     consume_token,
@@ -40,6 +43,10 @@ async def enforce_rate_limit(
             },
         )
 
+        RATE_LIMIT_EVENTS_TOTAL.labels(
+            outcome="unavailable",
+        ).inc()
+
         raise HTTPException(
             status_code=(
                 status.HTTP_503_SERVICE_UNAVAILABLE
@@ -65,6 +72,10 @@ async def enforce_rate_limit(
                 ),
             },
         )
+
+        RATE_LIMIT_EVENTS_TOTAL.labels(
+            outcome="rate_limited",
+        ).inc()
 
         raise HTTPException(
             status_code=(

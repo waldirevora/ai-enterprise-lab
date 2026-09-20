@@ -4,17 +4,23 @@ from fastapi import (
     Request,
     status,
 )
+from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import (
     TrustedHostMiddleware,
 )
 
 from app.api.agents import router as agents_router
 from app.api.rag import router as rag_router
+from app.observability.middleware import HttpMetricsMiddleware
 from app.audit.logger import emit_audit_event
 from app.audit.middleware import (
     AuditRequestContextMiddleware,
 )
 from app.core.config import settings
+from app.health.readiness import (
+    ReadinessCheckError,
+    check_readiness,
+)
 from app.providers.catalog import get_public_provider_catalog
 from app.rate_limit.http import enforce_rate_limit
 from app.rate_limit.origin import (
@@ -74,6 +80,10 @@ app.add_middleware(
     AuditRequestContextMiddleware
 )
 
+
+app.add_middleware(
+    HttpMetricsMiddleware
+)
 app.include_router(agents_router)
 app.include_router(rag_router)
 
@@ -83,6 +93,29 @@ def health() -> dict[str, str]:
     return {
         "status": "ok",
     }
+
+
+@app.get("/ready")
+async def ready() -> JSONResponse:
+    try:
+        await check_readiness()
+
+    except ReadinessCheckError:
+        return JSONResponse(
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+            ),
+            content={
+                "status": "not_ready",
+            },
+        )
+
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "ready",
+        },
+    )
 
 
 @app.get("/v1/providers")

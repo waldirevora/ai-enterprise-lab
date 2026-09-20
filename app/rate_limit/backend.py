@@ -82,6 +82,25 @@ class RedisRateLimitBackend:
                 "Invalid rate limit backend response."
             ) from exc
 
+    async def check_connection(self) -> bool:
+        try:
+            result = await self._client.ping()
+
+        except (
+            RedisError,
+            OSError,
+        ) as exc:
+            raise RateLimitBackendError(
+                "Rate limit backend unavailable."
+            ) from exc
+
+        if result is not True:
+            raise RateLimitBackendError(
+                "Invalid rate limit backend response."
+            )
+
+        return True
+
     async def close(self) -> None:
         await self._client.aclose()
 
