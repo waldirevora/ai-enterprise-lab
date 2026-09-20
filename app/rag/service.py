@@ -1,5 +1,8 @@
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Collection
+
+from fastapi import HTTPException
 
 from app.access.unit_grants import UnitAccessGrant
 from app.core.config import ProviderName
@@ -12,6 +15,11 @@ from app.rag.retrieval import (
     RagSearchResult,
     retrieve_chunks,
 )
+from app.observability.metrics import (
+    RAG_CHUNKS_USED,
+    RAG_REQUESTS_TOTAL,
+    RAG_RETRIEVAL_DURATION_SECONDS,
+)
 from app.schemas import (
     DataClassification,
     GenerateRequest,
@@ -22,6 +30,15 @@ from app.services import generation
 
 class RagServiceError(Exception):
     pass
+
+
+
+def _record_rag_outcome(
+    outcome: str,
+) -> None:
+    RAG_REQUESTS_TOTAL.labels(
+        outcome=outcome,
+    ).inc()
 
 
 @dataclass(frozen=True)
@@ -104,6 +121,8 @@ async def generate_rag_answer(
     #   principal_id=<authenticated principal>
     #   unit_grants=(...)
     #
+    retrieval_started_at = perf_counter()
+
     if (
         principal_id is not None
         and unit_grants
@@ -152,9 +171,24 @@ async def generate_rag_answer(
         )
 
     if not results:
+        _record_rag_outcome(
+            "no_context"
+        )
+
         raise RagServiceError(
             "No authorized RAG context was found."
         )
+
+    retrieval_duration_seconds = max(
+        perf_counter() - retrieval_started_at,
+        0.0,
+    )
+
+    RAG_RETRIEVAL_DURATION_SECONDS.labels(
+        outcome="success",
+    ).observe(
+        retrieval_duration_seconds
+    )
 
     context = build_rag_context(
         results,
@@ -163,11 +197,19 @@ async def generate_rag_answer(
     )
 
     if not context.text:
+        _record_rag_outcome(
+            "no_context"
+        )
+
         raise RagServiceError(
             "Authorized RAG context is empty."
         )
 
     if context.effective_classification is None:
+        _record_rag_outcome(
+            "no_context"
+        )
+
         raise RagServiceError(
             "RAG context classification could not be determined."
         )
@@ -192,8 +234,32 @@ async def generate_rag_answer(
         max_output_tokens=max_output_tokens,
     )
 
-    response = await generation.generate_text(
-        request
+    try:
+        response = await generation.generate_text(
+            request
+        )
+
+    except HTTPException as exc:
+        metric_outcome = (
+            "rejected"
+            if 400 <= exc.status_code < 500
+            else "unavailable"
+        )
+
+        _record_rag_outcome(
+            metric_outcome
+        )
+
+        raise
+
+    RAG_REQUESTS_TOTAL.labels(
+        outcome="success",
+    ).inc()
+
+    RAG_CHUNKS_USED.labels(
+        outcome="success",
+    ).observe(
+        context.chunks_used
     )
 
     return RagGenerationResult(

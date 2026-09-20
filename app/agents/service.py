@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import Collection
+from time import perf_counter
 
 from fastapi import HTTPException
 
@@ -18,6 +19,10 @@ from app.agents.tools import (
 )
 from app.audit.logger import (
     emit_audit_event,
+)
+from app.observability.metrics import (
+    AGENT_RUN_DURATION_SECONDS,
+    AGENT_RUNS_TOTAL,
 )
 from app.rag.service import (
     combine_classifications,
@@ -43,6 +48,14 @@ class AgentNoContextError(
     AgentServiceError
 ):
     pass
+
+
+def _record_agent_outcome(
+    outcome: str,
+) -> None:
+    AGENT_RUNS_TOTAL.labels(
+        outcome=outcome,
+    ).inc()
 
 
 def _build_grounded_prompt(
@@ -90,6 +103,8 @@ async def run_enterprise_knowledge_agent(
         ...,
     ] = (),
 ) -> AgentRunResponse:
+    agent_started_at = perf_counter()
+
     try:
         async with asyncio.timeout(
             AGENT_TOOL_TIMEOUT_SECONDS
@@ -135,6 +150,10 @@ async def run_enterprise_knowledge_agent(
             },
         )
 
+        _record_agent_outcome(
+            "unavailable"
+        )
+
         raise AgentServiceError(
             "Agent tool service unavailable."
         ) from exc
@@ -156,6 +175,10 @@ async def run_enterprise_knowledge_agent(
             metadata={
                 "status_code": 503,
             },
+        )
+
+        _record_agent_outcome(
+            "unavailable"
         )
 
         raise AgentServiceError(
@@ -201,6 +224,10 @@ async def run_enterprise_knowledge_agent(
             metadata={
                 "status_code": 404,
             },
+        )
+
+        _record_agent_outcome(
+            "no_context"
         )
 
         raise AgentNoContextError(
@@ -264,6 +291,10 @@ async def run_enterprise_knowledge_agent(
             },
         )
 
+        _record_agent_outcome(
+            "unavailable"
+        )
+
         raise AgentServiceError(
             "Agent generation service unavailable."
         ) from exc
@@ -286,6 +317,16 @@ async def run_enterprise_knowledge_agent(
             metadata={
                 "status_code": exc.status_code,
             },
+        )
+
+        metric_outcome = (
+            "rejected"
+            if 400 <= exc.status_code < 500
+            else "unavailable"
+        )
+
+        _record_agent_outcome(
+            metric_outcome
         )
 
         raise
@@ -347,6 +388,21 @@ async def run_enterprise_knowledge_agent(
         estimated_cost_usd=(
             generation.estimated_cost_usd
         ),
+    )
+
+    agent_duration_seconds = max(
+        perf_counter() - agent_started_at,
+        0.0,
+    )
+
+    AGENT_RUNS_TOTAL.labels(
+        outcome="success",
+    ).inc()
+
+    AGENT_RUN_DURATION_SECONDS.labels(
+        outcome="success",
+    ).observe(
+        agent_duration_seconds
     )
 
     emit_audit_event(
