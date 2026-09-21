@@ -89,6 +89,7 @@ class Settings(BaseSettings):
 
     redis_connect_timeout_seconds: float = 1.0
     redis_socket_timeout_seconds: float = 1.0
+    redis_readiness_timeout_seconds: float = 3.0
 
     rate_limit_enabled: bool = True
 

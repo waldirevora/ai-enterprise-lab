@@ -1,3 +1,5 @@
+import asyncio
+
 from app.core.config import settings
 from app.db.postgres import (
     DatabaseConnectionError,
@@ -34,10 +36,19 @@ async def check_readiness() -> bool:
 
     try:
         redis_ready = (
-            await backend.check_connection()
+            await asyncio.wait_for(
+                backend.check_connection(),
+                timeout=(
+                    settings
+                    .redis_readiness_timeout_seconds
+                ),
+            )
         )
 
-    except RateLimitBackendError as exc:
+    except (
+        RateLimitBackendError,
+        TimeoutError,
+    ) as exc:
         raise ReadinessCheckError(
             "Required dependency unavailable."
         ) from exc
