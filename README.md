@@ -2,61 +2,63 @@
 
 [![CI](https://github.com/waldirevora/ai-enterprise-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/waldirevora/ai-enterprise-lab/actions/workflows/ci.yml)
 
-Local-first reference lab for enterprise-oriented AI applications with **RAG, AI agents, access control, observability, security controls, and reproducible deployment practices**.
+**Idioma:** Português (Brasil) | [English](README_EN.md)
 
-## Why this project exists
+Laboratório de referência local-first para aplicações corporativas de IA com **RAG, agentes de IA, controle de acesso, observabilidade, segurança e práticas reproduzíveis de implantação**.
 
-The goal is not to build another chatbot. The project studies how generative AI can operate inside software systems with explicit trust boundaries, controlled access to data and tools, auditability, local model execution, and production-oriented engineering.
+## Por que este projeto existe
 
-> **Status:** active development. Core architecture, security hardening, CI, agents, observability, migrations, backup/recovery, and production runtime foundation are implemented. Local functional acceptance is in progress.
+O objetivo não é construir apenas mais um chatbot. O projeto estuda como a IA generativa pode operar dentro de sistemas de software com limites explícitos de confiança, acesso controlado a dados e ferramentas, auditabilidade, execução local de modelos e práticas de engenharia orientadas à produção.
 
-## Core capabilities
+> **Status:** desenvolvimento ativo. Arquitetura central, security hardening, CI, agentes, observabilidade, migrations, backup/recovery e a fundação de runtime de produção estão implementados. O RAG local end-to-end já foi validado e a validação de ACL/RAG autenticado está em andamento.
 
-- Local LLM execution with Ollama
-- Optional external AI provider controlled by policy
+## Principais capacidades
+
+- Execução local de LLMs com Ollama
+- Provedor externo de IA opcional controlado por policy
 - Retrieval-Augmented Generation (RAG)
 - PostgreSQL + pgvector
-- Document-level ACL
-- Organization and organizational-unit authorization
-- AI agents with explicit tool policies
-- Deny-by-default execution boundaries
-- Redis-backed rate limiting
-- Audit events and privacy-aware logging
-- Health and readiness endpoints
-- Application and AI observability
-- Versioned database migrations
-- Backup and recovery procedures
-- Docker runtime
-- Caddy reverse proxy / TLS topology
+- ACL em nível de documento
+- Autorização por organização e unidade organizacional
+- Agentes de IA com policies explícitas para tools
+- Limites de execução deny-by-default
+- Rate limiting com Redis
+- Eventos de auditoria e logging com atenção à privacidade
+- Endpoints de health e readiness
+- Observabilidade da aplicação e dos fluxos de IA
+- Migrations de banco versionadas
+- Procedimentos de backup e recovery
+- Runtime com Docker
+- Topologia Caddy reverse proxy / TLS
 - GitHub Actions CI
 
-## Architecture
+## Arquitetura
 
 ```mermaid
 flowchart TD
-    U[Client] --> C[Caddy / TLS]
+    U[Cliente] --> C[Caddy / TLS]
     C --> A[FastAPI Gateway]
     A --> PG[(PostgreSQL + pgvector)]
     A --> R[(Redis)]
     A --> O[Ollama]
-    A --> E[Optional External Provider]
+    A --> E[Provedor externo opcional]
     A --> N[n8n]
     A --> X[Auth / ACL / Policies]
-    A --> G[RAG / Agents]
-    A --> M[Audit / Metrics]
+    A --> G[RAG / Agentes]
+    A --> M[Auditoria / Métricas]
 ```
 
-The FastAPI gateway acts as the control plane. Models do not independently decide which protected documents may be retrieved, which tools may run, or whether data may leave the local environment.
+O gateway FastAPI funciona como plano de controle. Os modelos não decidem de forma independente quais documentos protegidos podem ser recuperados, quais tools podem ser executadas ou se dados podem sair do ambiente local.
 
-## Local AI
+## IA local
 
-| Profile | Model |
+| Perfil | Modelo |
 |---|---|
 | `local_fast` | `qwen2.5-coder:3b` |
 | `local_deep` | `qwen2.5-coder:7b-instruct-q3_K_S` |
 | embeddings | `qwen3-embedding:0.6b` |
 
-Validated smoke tests:
+Smoke tests validados:
 
 ```text
 local_fast   7.903 s
@@ -64,9 +66,9 @@ local_deep  13.223 s
 embedding    8.254 s / 1024 dimensions
 ```
 
-These are single-run smoke measurements, not final academic benchmarks.
+Essas são medições de uma única execução de smoke test, não benchmarks acadêmicos finais.
 
-## RAG flow
+## Fluxo RAG
 
 ```text
 document
@@ -82,27 +84,27 @@ document
 → audit / metrics
 ```
 
-Semantic similarity alone is not enough to make a document eligible for retrieval. Authorization and document ACLs are part of the retrieval boundary.
+A similaridade semântica, sozinha, não torna um documento elegível para retrieval. Autorização e ACL de documento fazem parte da fronteira de acesso do RAG.
 
-## Security model
+## Modelo de segurança
 
-Current controls include authentication, authorization, organizational scope, document ACLs, trusted hosts/proxies, request limits, rate limiting, secret sanitization, privacy-aware audit events, provider egress policy, dependency auditing, non-root runtimes, read-only filesystems where applicable, `no-new-privileges`, and capability reduction.
+Os controles atuais incluem autenticação, autorização, escopo organizacional, ACL de documentos, trusted hosts/proxies, limites de requisição, rate limiting, sanitização de secrets, eventos de auditoria com atenção à privacidade, policy de egress para providers, auditoria de dependências, runtimes non-root, filesystems read-only quando aplicável, `no-new-privileges` e redução de capabilities.
 
-Real secrets are not stored in Git. Versioned environment files are templates only:
+Secrets reais não são armazenados no Git. Os arquivos de ambiente versionados são apenas templates:
 
 ```text
 .env.example
 infra/.env.prod.example
 ```
 
-## Health and readiness
+## Health e readiness
 
 ```text
 GET /health
 GET /ready
 ```
 
-Validated behavior:
+Comportamento validado:
 
 ```text
 Normal:
@@ -117,7 +119,7 @@ Redis recovered:
 ready  = 200
 ```
 
-## Database migrations
+## Migrations de banco
 
 ```bash
 python -m app.db.migrations verify
@@ -126,11 +128,11 @@ python -m app.db.migrations status
 python -m app.db.migrations apply
 ```
 
-The migration layer provides baseline verification, ordered migrations, apply-once behavior, SHA-256 checksum validation, advisory locking, and status reporting.
+A camada de migrations oferece verificação de baseline, migrations ordenadas, comportamento apply-once, validação de checksum SHA-256, advisory locking e status report.
 
-See [infra/MIGRATIONS.md](infra/MIGRATIONS.md).
+Veja [infra/MIGRATIONS.md](infra/MIGRATIONS.md).
 
-## Production topology
+## Topologia de produção
 
 ```text
 Internet
@@ -148,16 +150,16 @@ FastAPI
 n8n → loopback-only binding
 ```
 
-PostgreSQL, Redis, and FastAPI are not directly published to the production host network.
+PostgreSQL, Redis e FastAPI não são publicados diretamente na rede do host de produção.
 
-See:
-- [Production environment](infra/PRODUCTION_ENV.md)
-- [Rollback and recovery](infra/ROLLBACK_RECOVERY.md)
-- [VPS deployment](infra/VPS_DEPLOYMENT.md)
+Veja:
+- [Ambiente de produção](infra/PRODUCTION_ENV.md)
+- [Rollback e recovery](infra/ROLLBACK_RECOVERY.md)
+- [Deploy em VPS](infra/VPS_DEPLOYMENT.md)
 
-## Local development
+## Desenvolvimento local
 
-Requirements: Python 3.12, Docker, Docker Compose, Ollama, and Git.
+Requisitos: Python 3.12, Docker, Docker Compose, Ollama e Git.
 
 ```bash
 git clone https://github.com/waldirevora/ai-enterprise-lab.git
@@ -172,78 +174,80 @@ python -m app.db.migrations status
 uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Verify:
+Verificação:
 
 ```bash
 curl http://127.0.0.1:8000/health
 curl http://127.0.0.1:8000/ready
 ```
 
-Never commit `.env`.
+Nunca faça commit do `.env`.
 
-## Tests
+## Testes
 
-Current validated baseline:
+Baseline atualmente validado:
 
 ```text
 417 passed
 ```
 
-The suite covers authentication, authorization, organizational units, RAG, ACL enforcement, agents, agent policies, rate limiting, audit, privacy, providers, readiness, migrations, security headers, production configuration, and deployment contracts.
+A suíte cobre autenticação, autorização, unidades organizacionais, RAG, enforcement de ACL, agentes, policies de agentes, rate limiting, auditoria, privacidade, providers, readiness, migrations, security headers, configuração de produção e contratos de deployment.
 
 ```bash
 pytest -q
 ```
 
-## Project status
+## Status do projeto
 
-| Area | Status |
+| Área | Status |
 |---|---|
-| FastAPI gateway | Complete |
-| PostgreSQL / pgvector | Complete |
-| Authentication / authorization | Complete |
-| RAG implementation | Complete |
-| Agents / orchestration | Complete |
-| Security hardening | Complete |
-| Privacy review | Complete |
-| Observability | Complete |
-| CI | Complete |
-| Migration framework | Complete |
-| Backup / recovery | Complete |
-| Production runtime foundation | Complete |
-| Local runtime | Validated |
-| Local LLM generation | Validated |
-| Local embeddings | Validated |
-| Full RAG functional acceptance | In progress |
-| Real VPS deployment | Pending |
-| Continuous deployment | Planned |
-| Academic benchmarking | In progress |
+| Gateway FastAPI | Concluído |
+| PostgreSQL / pgvector | Concluído |
+| Autenticação / autorização | Concluído |
+| Implementação RAG | Concluído |
+| Agentes / orquestração | Concluído |
+| Security hardening | Concluído |
+| Privacy review | Concluído |
+| Observabilidade | Concluído |
+| CI | Concluído |
+| Framework de migrations | Concluído |
+| Backup / recovery | Concluído |
+| Fundação de runtime de produção | Concluído |
+| Runtime local | Validado |
+| Geração LLM local | Validada |
+| Embeddings locais | Validados |
+| RAG end-to-end local | Validado |
+| ACL / RAG autenticado | Em validação |
+| Deploy real em VPS | Pendente |
+| Continuous deployment | Planejado |
+| Benchmarking acadêmico | Em andamento |
 
-## Academic scope
+## Escopo acadêmico
 
-AI Enterprise Lab is also structured as an applied academic project around this question:
+O AI Enterprise Lab também está estruturado como projeto acadêmico aplicado em torno da seguinte questão:
 
-> How can a local and private generative AI architecture integrate RAG, agents, APIs, access control, persistence, security, and observability while preserving traceability and deployability?
+> Como estruturar e validar uma arquitetura local e privada de inteligência artificial generativa capaz de integrar RAG, agentes, APIs, controle de acesso, persistência, segurança e observabilidade, mantendo rastreabilidade e condições de implantação empresarial?
 
-The experimental plan includes generation latency, embedding performance, retrieval quality, Hit@k, MRR, ACL enforcement, failure/recovery, persistence, migration idempotency, backup/restore, and CPU/RAM/VRAM usage.
+O plano experimental inclui latência de geração, desempenho de embeddings, qualidade de retrieval, Hit@k, MRR, enforcement de ACL, falha/recuperação, persistência, idempotência de migrations, backup/restore e uso de CPU/RAM/VRAM.
 
 ## Roadmap
 
-1. Complete local RAG functional acceptance.
-2. Validate ACL behavior with real documents.
-3. Validate agent/tool execution locally.
-4. Collect reproducible academic measurements.
-5. Execute the first manual deployment on a VPS.
-6. Validate public DNS, firewall, and ACME.
-7. Add controlled continuous deployment.
-8. Package the project as a reproducible `v1.0`.
+1. Concluir a validação local de ACL e RAG autenticado.
+2. Validar a execução local de agentes e tools.
+3. Validar persistência e restart.
+4. Validar backup e restore.
+5. Coletar medições acadêmicas reproduzíveis.
+6. Executar o primeiro deployment manual em VPS.
+7. Validar DNS público, firewall e ACME.
+8. Adicionar continuous deployment controlado.
+9. Empacotar o projeto como versão reproduzível `v1.0`.
 
-## License
+## Licença
 
-No open-source license has been selected yet. Public visibility does not automatically grant permission to copy, modify, or redistribute the source code beyond rights provided by applicable law.
+Nenhuma licença open source foi selecionada até o momento. A visibilidade pública do repositório não concede automaticamente permissão para copiar, modificar ou redistribuir o código-fonte além dos direitos previstos pela legislação aplicável.
 
-## Author
+## Autor
 
 **Waldir Évora**
 
-Applied AI · Digital Automation · Systems & Integrations · Python/Backend · RAG · AI Agents
+IA Aplicada · Automação Digital · Sistemas e Integrações · Python/Backend · RAG · Agentes de IA
