@@ -1,6 +1,8 @@
 from typing import Any
 
 from redis.asyncio import Redis
+from redis.asyncio.retry import Retry
+from redis.backoff import NoBackoff
 from redis.exceptions import RedisError
 
 from app.core.config import settings
@@ -31,6 +33,10 @@ class RedisRateLimitBackend:
                 ),
                 socket_timeout=(
                     settings.redis_socket_timeout_seconds
+                ),
+                retry=Retry(
+                    NoBackoff(),
+                    0,
                 ),
                 decode_responses=True,
             )

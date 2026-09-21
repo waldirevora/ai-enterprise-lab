@@ -1,0 +1,12 @@
+{
+	admin off
+}
+
+{$APP_DOMAIN} {
+	log {
+		output stdout
+		format json
+	}
+
+	reverse_proxy app:8000
+}

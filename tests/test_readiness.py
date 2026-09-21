@@ -337,3 +337,71 @@ def test_redis_backend_false_ping_is_rejected():
         raise AssertionError(
             "Redis false ping should fail."
         )
+
+
+def test_default_redis_backend_disables_automatic_retries():
+    backend = RedisRateLimitBackend()
+
+    retry = (
+        backend
+        ._client
+        .connection_pool
+        .connection_kwargs
+        .get("retry")
+    )
+
+    assert retry is not None
+    assert retry._retries == 0
+
+
+def test_redis_readiness_timeout_is_sanitized(
+    monkeypatch,
+):
+    async def database_ok():
+        return True
+
+    async def redis_hangs():
+        await asyncio.sleep(
+            60
+        )
+
+        return True
+
+    monkeypatch.setattr(
+        readiness,
+        "check_database_connection",
+        database_ok,
+    )
+
+    monkeypatch.setattr(
+        readiness.backend,
+        "check_connection",
+        redis_hangs,
+    )
+
+    monkeypatch.setattr(
+        readiness.settings,
+        "rate_limit_enabled",
+        True,
+    )
+
+    monkeypatch.setattr(
+        readiness.settings,
+        "redis_readiness_timeout_seconds",
+        0.01,
+    )
+
+    try:
+        asyncio.run(
+            readiness.check_readiness()
+        )
+
+    except readiness.ReadinessCheckError as exc:
+        assert str(exc) == (
+            "Required dependency unavailable."
+        )
+
+    else:
+        raise AssertionError(
+            "Readiness should have timed out."
+        )
