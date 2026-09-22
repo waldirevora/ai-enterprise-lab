@@ -10,7 +10,7 @@ Laboratório de referência local-first para aplicações corporativas de IA com
 
 O objetivo não é construir apenas mais um chatbot. O projeto estuda como a IA generativa pode operar dentro de sistemas de software com limites explícitos de confiança, acesso controlado a dados e ferramentas, auditabilidade, execução local de modelos e práticas de engenharia orientadas à produção.
 
-> **Status:** desenvolvimento ativo. Arquitetura central, security hardening, CI, agentes, observabilidade, migrations, backup/recovery e a fundação de runtime de produção estão implementados. O RAG local end-to-end já foi validado e a validação de ACL/RAG autenticado está em andamento.
+> **Status:** desenvolvimento ativo. Arquitetura central, security hardening, CI, agentes, observabilidade, migrations, backup/recovery e a fundação de runtime de produção estão implementados. RAG local end-to-end e ACL/RAG autenticado já foram validados funcionalmente. A caracterização acadêmica continua em andamento.
 
 ## Principais capacidades
 
@@ -188,7 +188,7 @@ Nunca faça commit do `.env`.
 Baseline atualmente validado:
 
 ```text
-424 passed
+427 passed
 ```
 
 A suíte cobre autenticação, autorização, unidades organizacionais, RAG, enforcement de ACL, agentes, policies de agentes, rate limiting, auditoria, privacidade, providers, readiness, migrations, security headers, configuração de produção e contratos de deployment.
@@ -217,7 +217,7 @@ pytest -q
 | Geração LLM local | Validada |
 | Embeddings locais | Validados |
 | RAG end-to-end local | Validado |
-| ACL / RAG autenticado | Em validação |
+| ACL / RAG autenticado | Validado funcionalmente |
 | Deploy real em VPS | Pendente |
 | Continuous deployment | Planejado |
 | Benchmarking acadêmico | Em andamento |
@@ -232,15 +232,13 @@ O plano experimental inclui latência de geração, desempenho de embeddings, qu
 
 ## Roadmap
 
-1. Concluir a validação local de ACL e RAG autenticado.
-2. Validar a execução local de agentes e tools.
-3. Validar persistência e restart.
-4. Validar backup e restore.
-5. Coletar medições acadêmicas reproduzíveis.
-6. Executar o primeiro deployment manual em VPS.
-7. Validar DNS público, firewall e ACME.
-8. Adicionar continuous deployment controlado.
-9. Empacotar o projeto como versão reproduzível `v1.0`.
+1. Completar a caracterização acadêmica restante de E02, E04, E07 e E12.
+2. Executar testes de carga concorrente.
+3. Executar o primeiro deployment manual em VPS.
+4. Validar DNS público, firewall, ACME, logs e recursos em ambiente remoto.
+5. Adicionar continuous deployment controlado após a validação manual.
+6. Consolidar documentação acadêmica e demo reproduzível.
+7. Empacotar o projeto como versão reproduzível `v1.0`.
 
 ## Licença
 

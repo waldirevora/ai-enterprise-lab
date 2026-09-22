@@ -51,10 +51,11 @@ Explicar que providers e tools são controlados por política.
 
 ## Slide 5 — RAG
 
-Demonstrar:
+Mostrar o fluxo:
 
 ```text
 documento
+→ chunking
 → embedding
 → pgvector
 → autorização
@@ -63,10 +64,13 @@ documento
 → geração
 ```
 
-Resultado local atual:
-- documento esperado recuperado em 5/5 execuções da caracterização;
-- similaridade observada 0,759571;
-- dataset ainda mínimo, sem alegação de qualidade em escala.
+Resultados principais:
+- E05: documentos de 1000 palavras produziram 6 chunks; mediana de ingestão = 3.059,056 ms;
+- E06: 10 documentos sintéticos + 1 distractor e 10 queries com ground truth;
+- Hit@1 = 1,000; Hit@3 = 1,000; Hit@5 = 1,000; MRR = 1,000;
+- mediana de retrieval E06 = 121,008 ms.
+
+Explicar que o corpus é pequeno, sintético e semanticamente separado. O resultado demonstra funcionamento no corpus controlado, não qualidade universal em escala empresarial.
 
 ---
 
@@ -75,26 +79,43 @@ Resultado local atual:
 Mostrar:
 - deny-by-default;
 - ACL;
-- non-root;
-- secrets;
+- execução non-root;
+- secrets fora do código;
 - trusted proxy;
-- audit;
+- audit trail;
 - rate limiting;
 - métricas sem labels sensíveis.
+
+Caso E13:
+- canário em query string foi encontrado no access log padrão do Uvicorn;
+- access log foi desabilitado com `--no-access-log` nos entrypoints controlados;
+- `query_string` entrou na denylist das métricas;
+- regressão confirmou ausência dos canários em logs e respostas.
+
+Mensagem principal: o experimento encontrou um risco real, o projeto foi corrigido e o mesmo cenário foi retestado.
 
 ---
 
 ## Slide 7 — Engenharia e confiabilidade
 
 Mostrar:
-- 424 testes;
-- CI;
-- migrations;
-- checksums;
-- persistence/restart;
-- backup/restore isolado;
-- readiness;
-- rollback.
+- 427 testes automatizados aprovados;
+- CI no PR e novamente após merge em `main`;
+- migrations com checksums e idempotência;
+- persistência após recreation;
+- backup e restore isolado;
+- readiness fail-closed;
+- rollback documentado.
+
+Exemplo de resiliência E08:
+
+```text
+Redis indisponível: /health=200 e /ready=503
+Redis recuperado: /ready=200 sem reiniciar a API
+mediana de recuperação funcional = 643,790 ms
+```
+
+Distinguir recuperação funcional da API do healthcheck mais conservador do Docker.
 
 ---
 
@@ -117,68 +138,87 @@ Fluxo sugerido:
 
 ## Slide 9 — Experimentos
 
-Mostrar o protocolo:
+Explicar que o projeto passou de validação funcional para caracterização experimental controlada.
+
+Protocolo recorrente:
 
 ```text
-1 warm-up excluído
-5 execuções sequenciais
-mínimo / mediana / média / máximo
+warm-up excluído quando aplicável
+execuções sequenciais
+mesmo ambiente local
+sem concorrência artificial
+mínimo / mediana / média / máximo quando disponíveis
 ```
 
-Apresentar como caracterização local, não benchmark universal.
+Experimentos consolidados:
+- E01: startup local;
+- E03: geração `local_deep`;
+- E05: ingestão RAG;
+- E06: qualidade de retrieval;
+- E08: falha e recuperação do Redis;
+- E13: logs e secrets;
+- E14: CPU, RAM, GPU, VRAM e temperatura de GPU.
 
-Exemplos medidos:
-- embedding;
-- retrieval;
-- geração `local_fast`;
-- agente E2E;
-- health/readiness.
+Também permanecem as caracterizações anteriores de embeddings, `local_fast`, agente E2E, health/readiness, persistência e backup/restore.
+
+Mensagem metodológica: são resultados do ambiente testado, não benchmark universal.
 
 ---
 
 ## Slide 10 — Resultados
 
-Exemplos:
+Selecionar poucos resultados representativos:
 
 ```text
-424 testes aprovados
+427 testes aprovados
 
 local_fast:
 mediana wall clock = 323,017 ms
 
-embedding:
-mediana = 52,836 ms
-dimensão = 1024
+local_deep:
+mediana wall clock = 7.335,776 ms
 
-retrieval:
-mediana = 97,128 ms
-documento esperado = 5/5
+E06 retrieval:
+Hit@1 = 1,000
+Hit@3 = 1,000
+Hit@5 = 1,000
+MRR = 1,000
+mediana = 121,008 ms
 
-agente E2E:
-mediana = 5.015,606 ms
-HTTP 200 + citação + tool trace = 5/5
+E08 Redis recovery:
+mediana até /ready=200 = 643,790 ms
+
+E13:
+finding de query string no access log = corrigido e retestado
+
+E14:
+GPU util. máxima = 93%
+GPU temp. máxima = 65 °C
 
 backup/restore:
 restore isolado = PASS
 ```
 
-Separar claramente:
-- resultado validado;
-- caracterização parcial;
-- medição ainda pendente.
+Durante a apresentação, não interpretar diferenças de latência entre experimentos distintos como regressão sem protocolo diretamente comparável.
 
 ---
 
 ## Slide 11 — Limitações
 
-- hardware com 4 GB de VRAM;
-- dataset RAG de 1 documento/1 chunk nas métricas atuais;
-- séries principais com `n=5`;
+Apresentar somente limitações que continuam reais:
+- hardware local com GPU de 4 GB de VRAM;
+- E06 com 10 documentos sintéticos, 10 queries e 1 distractor: corpus ainda pequeno e semanticamente separado;
+- principais séries controladas com amostras pequenas, normalmente `n=5`;
+- E14 com apenas 3 gerações sequenciais durante `inference_load`;
+- ambiente de caracterização em WSL2;
+- temperatura de CPU e potência não disponíveis;
 - sem carga concorrente;
-- sem CPU/RAM/VRAM acadêmicos sincronizados;
-- sem HA;
+- sem alta disponibilidade;
 - sem IAM corporativo completo;
-- VPS real ainda pendente.
+- sem deployment público real em VPS, DNS e ACME;
+- E02, E04, E07 e E12 ainda parcialmente caracterizados em aspectos específicos.
+
+Mensagem principal: os experimentos sustentam o funcionamento da arquitetura no ambiente local testado, mas não demonstram capacidade de produção em escala.
 
 ---
 

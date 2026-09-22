@@ -10,7 +10,7 @@ Local-first reference lab for enterprise-oriented AI applications with **RAG, AI
 
 The goal is not to build another chatbot. The project studies how generative AI can operate inside software systems with explicit trust boundaries, controlled access to data and tools, auditability, local model execution, and production-oriented engineering.
 
-> **Status:** active development. Core architecture, security hardening, CI, agents, observability, migrations, backup/recovery, and production runtime foundation are implemented. Local RAG end-to-end has been validated, and ACL/authenticated RAG validation is in progress.
+> **Status:** active development. Core architecture, security hardening, CI, agents, observability, migrations, backup/recovery, and the production runtime foundation are implemented. Local RAG end-to-end and ACL/authenticated RAG have been functionally validated. Academic characterization remains in progress.
 
 ## Core capabilities
 
@@ -188,7 +188,7 @@ Never commit `.env`.
 Current validated baseline:
 
 ```text
-424 passed
+427 passed
 ```
 
 The suite covers authentication, authorization, organizational units, RAG, ACL enforcement, agents, agent policies, rate limiting, audit, privacy, providers, readiness, migrations, security headers, production configuration, and deployment contracts.
@@ -217,7 +217,7 @@ pytest -q
 | Local LLM generation | Validated |
 | Local embeddings | Validated |
 | Local RAG end-to-end | Validated |
-| ACL / authenticated RAG | In validation |
+| ACL / authenticated RAG | Functionally validated |
 | Real VPS deployment | Pending |
 | Continuous deployment | Planned |
 | Academic benchmarking | In progress |
@@ -232,15 +232,13 @@ The experimental plan includes generation latency, embedding performance, retrie
 
 ## Roadmap
 
-1. Complete local ACL and authenticated RAG validation.
-2. Validate agent/tool execution locally.
-3. Validate persistence and restart behavior.
-4. Validate backup and restore.
-5. Collect reproducible academic measurements.
-6. Execute the first manual deployment on a VPS.
-7. Validate public DNS, firewall, and ACME.
-8. Add controlled continuous deployment.
-9. Package the project as a reproducible `v1.0`.
+1. Complete the remaining academic characterization for E02, E04, E07, and E12.
+2. Run concurrent load tests.
+3. Execute the first manual deployment on a VPS.
+4. Validate public DNS, host firewall, ACME, logs, and resource usage in the remote environment.
+5. Add controlled continuous deployment after manual validation.
+6. Consolidate academic documentation and a reproducible demo.
+7. Package the project as a reproducible `v1.0` release.
 
 ## License
 
