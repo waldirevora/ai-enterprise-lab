@@ -6,7 +6,11 @@ from dataclasses import dataclass
 import psycopg
 
 from app.access.api_keys import generate_api_key
+from app.core.config import settings
 from app.db.postgres import DatabaseConnectionError, build_postgres_dsn
+
+
+_ALLOWED_BOOTSTRAP_ROLES = ("owner", "admin", "member")
 
 
 class BootstrapError(Exception):
@@ -36,6 +40,14 @@ async def bootstrap_access(
     display_name = display_name.strip()
     subject = subject.strip()
     credential_name = credential_name.strip()
+
+    if settings.app_env == "production":
+        raise BootstrapError(
+            "bootstrap_access is disabled in production."
+        )
+
+    if role not in _ALLOWED_BOOTSTRAP_ROLES:
+        raise BootstrapError("Invalid bootstrap role.")
 
     if not all((
         organization_slug,
@@ -209,7 +221,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--subject", required=True)
     parser.add_argument(
         "--role",
-        choices=("owner", "admin", "member", "service"),
+        choices=_ALLOWED_BOOTSTRAP_ROLES,
         default="owner",
     )
     parser.add_argument(

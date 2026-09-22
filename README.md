@@ -10,7 +10,16 @@ Laboratório de referência local-first para aplicações corporativas de IA com
 
 O objetivo não é construir apenas mais um chatbot. O projeto estuda como a IA generativa pode operar dentro de sistemas de software com limites explícitos de confiança, acesso controlado a dados e ferramentas, auditabilidade, execução local de modelos e práticas de engenharia orientadas à produção.
 
-> **Status:** desenvolvimento ativo. Arquitetura central, security hardening, CI, agentes, observabilidade, migrations, backup/recovery e a fundação de runtime de produção estão implementados. RAG local end-to-end e ACL/RAG autenticado já foram validados funcionalmente. A caracterização acadêmica continua em andamento.
+> **Status:** desenvolvimento ativo. Arquitetura central, security hardening, privacidade, CI, agentes, observabilidade, migrations, backup/recovery, runtime de produção e onboarding público local estão implementados. Bootstrap, ingestão autenticada, RAG autenticado e Enterprise Knowledge Agent foram validados end-to-end. A caracterização quantitativa restante e o deploy real em VPS continuam em andamento.
+
+## Estado validado
+
+- Onboarding público local com bootstrap, ingestão e revogação de credenciais
+- RAG autenticado validado end-to-end
+- Enterprise Knowledge Agent validado end-to-end
+- PostgreSQL/pgvector, Redis, Ollama e n8n validados no runtime local
+- CI em Pull Requests e `main` validado
+- Cleanup das fixtures de teste validado com zero resíduos
 
 ## Comece por aqui
 
@@ -22,6 +31,7 @@ Documentação operacional:
 - [Guia de uso](docs/getting-started/USAGE.md)
 - [Agents, Skills e Tools](docs/getting-started/AGENTS_AND_TOOLS.md)
 - [Troubleshooting](docs/getting-started/TROUBLESHOOTING.md)
+- [Política de segurança](SECURITY.md)
 
 ## Principais capacidades
 
@@ -199,7 +209,7 @@ Nunca faça commit do `.env`.
 Baseline atualmente validado:
 
 ```text
-435 passed
+442 passed
 ```
 
 A suíte cobre autenticação, autorização, unidades organizacionais, RAG, enforcement de ACL, agentes, policies de agentes, rate limiting, auditoria, privacidade, providers, readiness, migrations, security headers, configuração de produção e contratos de deployment.
@@ -230,6 +240,8 @@ pytest -q
 | RAG end-to-end local | Validado |
 | ACL / RAG autenticado | Validado funcionalmente |
 | Onboarding local / CLIs | Validado |
+| Revogação de API credentials | Validada |
+| Onboarding E2E RAG + Agent | Validado |
 | Deploy real em VPS | Pendente |
 | Continuous deployment | Planejado |
 | Benchmarking acadêmico | Em andamento |
@@ -249,7 +261,7 @@ O plano experimental inclui latência de geração, desempenho de embeddings, qu
 3. Executar o primeiro deployment manual em VPS.
 4. Validar DNS público, firewall, ACME, logs e recursos em ambiente remoto.
 5. Adicionar continuous deployment controlado após a validação manual.
-6. Consolidar documentação acadêmica e demo reproduzível.
+6. Consolidar demo reproduzível e resultados finais.
 7. Empacotar o projeto como versão reproduzível `v1.0`.
 
 ## Licença

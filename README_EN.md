@@ -10,20 +10,30 @@ Local-first reference lab for enterprise-oriented AI applications with **RAG, AI
 
 The goal is not to build another chatbot. The project studies how generative AI can operate inside software systems with explicit trust boundaries, controlled access to data and tools, auditability, local model execution, and production-oriented engineering.
 
-> **Status:** active development. Core architecture, security hardening, CI, agents, observability, migrations, backup/recovery, and the production runtime foundation are implemented. Local RAG end-to-end and ACL/authenticated RAG have been functionally validated. Academic characterization remains in progress.
+> **Status:** active development. Core architecture, security hardening, privacy, CI, agents, observability, migrations, backup/recovery, the production runtime foundation, and local public onboarding are implemented. Bootstrap, authenticated ingestion, authenticated RAG, and the Enterprise Knowledge Agent have been validated end-to-end. Remaining quantitative characterization and real VPS deployment are still in progress.
+
+## Validated state
+
+- Local public onboarding with bootstrap, ingestion and credential revocation
+- Authenticated RAG validated end-to-end
+- Enterprise Knowledge Agent validated end-to-end
+- PostgreSQL/pgvector, Redis, Ollama and n8n validated in the local runtime
+- Pull Request and `main` CI validated
+- Temporary test fixtures validated with zero residue after cleanup
 
 ## Getting started
 
-For the complete local path from clone to the first authenticated query, see the [Quick Start](docs/getting-started/QUICK_START.md).
+For the complete local path from clone to the first authenticated query, see the [Quick Start](docs/getting-started/QUICK_START_EN.md).
 
 Operational documentation:
 
-- [Quick Start](docs/getting-started/QUICK_START.md)
+- [Quick Start](docs/getting-started/QUICK_START_EN.md)
 - [Usage guide](docs/getting-started/USAGE.md)
 - [Agents, Skills and Tools](docs/getting-started/AGENTS_AND_TOOLS.md)
-- [Troubleshooting](docs/getting-started/TROUBLESHOOTING.md)
+- [Troubleshooting](docs/getting-started/TROUBLESHOOTING_EN.md)
+- [Security policy](SECURITY.md)
 
-The detailed operational guides are currently maintained in Brazilian Portuguese.
+The Usage and Agents/Tools guides are currently maintained in Brazilian Portuguese.
 
 ## Core capabilities
 
@@ -201,7 +211,7 @@ Never commit `.env`.
 Current validated baseline:
 
 ```text
-435 passed
+442 passed
 ```
 
 The suite covers authentication, authorization, organizational units, RAG, ACL enforcement, agents, agent policies, rate limiting, audit, privacy, providers, readiness, migrations, security headers, production configuration, and deployment contracts.
@@ -232,6 +242,8 @@ pytest -q
 | Local RAG end-to-end | Validated |
 | ACL / authenticated RAG | Functionally validated |
 | Local onboarding / CLIs | Validated |
+| API credential revocation | Validated |
+| RAG + Agent onboarding E2E | Validated |
 | Real VPS deployment | Pending |
 | Continuous deployment | Planned |
 | Academic benchmarking | In progress |
@@ -251,7 +263,7 @@ The experimental plan includes generation latency, embedding performance, retrie
 3. Execute the first manual deployment on a VPS.
 4. Validate public DNS, host firewall, ACME, logs, and resource usage in the remote environment.
 5. Add controlled continuous deployment after manual validation.
-6. Consolidate academic documentation and a reproducible demo.
+6. Consolidate the reproducible demo and final results.
 7. Package the project as a reproducible `v1.0` release.
 
 ## License

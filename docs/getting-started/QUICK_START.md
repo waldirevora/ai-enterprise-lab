@@ -1,4 +1,5 @@
 # Quick Start
+\n**Idioma:** Português (Brasil) | [English](QUICK_START_EN.md)
 
 Este guia leva uma instalação local do AI Enterprise Lab do clone até a primeira consulta RAG autenticada e a primeira execução de agente.
 
@@ -265,3 +266,20 @@ APIs autenticadas derivam organização, principal, role, classificação e esco
 ## Próximos documentos
 
 Depois deste Quick Start, consulte os guias de uso, agentes/tools, troubleshooting e operação de produção.
+
+## Revogar uma credencial
+
+Quando uma API key não for mais necessária, revogue-a sem colocá-la na linha de comando:
+
+```bash
+AEL_API_KEY="$AEL_API_KEY" \
+.venv/bin/python -m app.cli.revoke_api_key
+```
+
+Depois remova a variável da sessão:
+
+```bash
+unset AEL_API_KEY
+```
+
+O `bootstrap_access` é destinado ao onboarding local e recusa execução quando `APP_ENV=production`.

@@ -160,3 +160,20 @@ docker compose --env-file .env -f infra/compose.yaml stop
 ```
 
 Evite comandos destrutivos contra volumes que contenham dados necessários.
+
+## 12. Revogar uma API key
+
+Com a chave carregada em `AEL_API_KEY`:
+
+```bash
+AEL_API_KEY="$AEL_API_KEY" \
+.venv/bin/python -m app.cli.revoke_api_key
+```
+
+A ferramenta não recebe o token como argumento de linha de comando e não imprime o token completo.
+
+## 13. Bootstrap e produção
+
+`bootstrap_access` existe para onboarding administrativo local. Em `APP_ENV=production`, o CLI falha de forma fechada.
+
+Provisionamento administrativo de produção deve seguir um fluxo controlado específico do ambiente de produção.

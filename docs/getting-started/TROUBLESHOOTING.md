@@ -1,4 +1,5 @@
 # Troubleshooting
+\n**Idioma:** Português (Brasil) | [English](TROUBLESHOOTING_EN.md)
 
 Este guia cobre falhas comuns do ambiente local do AI Enterprise Lab.
 
@@ -143,3 +144,16 @@ Depois isole o arquivo ou teste afetado com pytest.
 Registre a etapa que falhou, comando executado, código de retorno, mensagem de erro sanitizada e ambiente utilizado.
 
 Remova API keys, senhas, tokens, `.env`, dados empresariais e qualquer outro secret antes de compartilhar logs.
+
+## 13. Credencial revogada
+
+Uma API key revogada deixa de autenticar imediatamente.
+
+Para revogar a chave carregada em `AEL_API_KEY`:
+
+```bash
+AEL_API_KEY="$AEL_API_KEY" \
+.venv/bin/python -m app.cli.revoke_api_key
+```
+
+Se uma nova credencial for necessária, gere outra por um fluxo administrativo autorizado. Não tente reativar diretamente uma credencial revogada.
