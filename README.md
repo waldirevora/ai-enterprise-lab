@@ -171,7 +171,7 @@ docker compose --env-file .env -f infra/compose.yaml up -d
 
 python -m app.db.migrations status
 
-uvicorn app.main:app --host 127.0.0.1 --port 8000
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log
 ```
 
 Verificação:

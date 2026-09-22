@@ -44,4 +44,4 @@ HEALTHCHECK \
 
 STOPSIGNAL SIGTERM
 
-CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-proxy-headers", "--timeout-keep-alive", "5", "--timeout-graceful-shutdown", "30"]
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--no-access-log", "--no-proxy-headers", "--timeout-keep-alive", "5", "--timeout-graceful-shutdown", "30"]

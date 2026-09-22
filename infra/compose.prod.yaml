@@ -133,6 +133,7 @@ services:
       - "8000"
       - --workers
       - "1"
+      - --no-access-log
       - --proxy-headers
       - --forwarded-allow-ips
       - 172.30.10.10

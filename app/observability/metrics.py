@@ -230,6 +230,7 @@ FORBIDDEN_METRIC_LABELS = frozenset(
         "secret",
         "exception",
         "raw_path",
+        "query_string",
         "authorization",
         "api_key",
         "metadata",
