@@ -57,25 +57,35 @@ Esses resultados caracterizam o laboratório atual. Não constituem benchmark un
 
 **Objetivo:** medir o tempo necessário para o ambiente local atingir estado operacional.
 
-### Procedimento
+### Protocolo executado
 
-1. Encerrar stack.
-2. Registrar timestamp.
-3. Subir dependências.
-4. Iniciar API.
-5. Aguardar readiness 200.
-6. Registrar tempo total.
+Foram executados 5 ciclos controlados, preservando os volumes persistentes.
 
-### Métricas
+Em cada ciclo foram observados PostgreSQL, Redis, API/readiness e n8n como serviço auxiliar.
 
-```text
-tempo até PostgreSQL healthy
-tempo até Redis healthy
-tempo até API ready
-tempo total
-```
+### Resultados
 
-**Resultado:** PENDENTE DE MEDIÇÃO
+API/readiness total:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 12.537,911 ms |
+| mediana | 12.824,685 ms |
+| média | 12.876,482 ms |
+| máximo | 13.432,805 ms |
+
+PostgreSQL/Redis healthy:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 11.938,936 ms |
+| mediana | 12.198,596 ms |
+| média | 12.150,032 ms |
+| máximo | 12.230,486 ms |
+
+O n8n apresentou tempo de healthcheck superior e foi tratado como serviço auxiliar, sem compor o critério principal de readiness da API.
+
+**Resultado:** VALIDADO
 
 ---
 
@@ -135,15 +145,30 @@ execução formal com amostra maior
 
 Modelo:
 
-```text
-qwen2.5-coder:7b-instruct-q3_K_S
-```
+`qwen2.5-coder:7b-instruct-q3_K_S`
 
-Objetivo: caracterizar latência e recursos no mesmo protocolo utilizado para `local_fast`.
+### Protocolo executado
 
-Há smoke test funcional anterior, mas não existe ainda uma série controlada equivalente ao A10.
+Foi executado 1 warm-up excluído das estatísticas, seguido de 5 execuções sequenciais medidas.
+A temperatura foi fixada em 0 e a saída limitada a 64 tokens.
 
-**Resultado:** PENDENTE DE MEDIÇÃO
+### Resultados
+
+As 5 execuções retornaram HTTP 200, provider/model corretos e 64 tokens gerados.
+
+Wall clock mediano:
+
+`7.335,776 ms`
+
+Duração mediana reportada pelo provider:
+
+`7.298,600 ms`
+
+Como todas as execuções atingiram o limite de 64 tokens, a latência caracteriza uma saída limitada por esse teto.
+
+A caracterização de CPU, RAM, VRAM e temperatura foi complementada posteriormente no E14.
+
+**Resultado:** VALIDADO
 
 ---
 
@@ -189,63 +214,85 @@ VRAM
 
 ## 8. Experimento E05 — Ingestão RAG
 
-### Dataset planejado
+### Protocolo executado
 
-Criar corpus controlado com:
-- documento A;
-- documento B;
-- documento C;
-- pelo menos um documento com ACL restrita.
+Foi executado 1 warm-up excluído, seguido de 5 documentos medidos.
+Cada documento continha 1000 palavras e produziu 6 chunks.
+O pipeline incluiu chunking, embeddings locais, persistência em PostgreSQL/pgvector e cleanup posterior.
 
-### Métricas
+Parâmetros principais:
 
-```text
-tempo de ingestão
-chunks gerados
-tempo de embeddings
-registros persistidos
-```
+`chunk_size_words=220`
 
-O fluxo de ingestão já foi validado funcionalmente, mas o experimento com corpus controlado ainda não foi executado.
+`overlap_words=40`
 
-**Resultado:** PENDENTE DE MEDIÇÃO
+### Resultados
+
+Tempo de ingestão medido:
+
+| Métrica | Valor |
+|---|---:|
+| mediana | 3.059,056 ms |
+| média | 2.844,063 ms |
+
+As 5 execuções produziram os 6 chunks esperados por documento.
+O cleanup restaurou o baseline após o experimento.
+
+ACL não foi misturada neste experimento; sua avaliação permanece no E07.
+
+**Resultado:** VALIDADO
 
 ---
 
 ## 9. Experimento E06 — Qualidade de retrieval
 
-O experimento formal deve usar no mínimo 20 perguntas com fonte correta conhecida.
+### Protocolo executado
+
+Foi criado um corpus sintético controlado com 10 documentos semanticamente distintos e 10 queries com ground truth definido previamente.
+Um documento persistente adicional permaneceu como distractor.
+Cada documento temporário possuía 1 chunk e o retrieval utilizou `limit=20`.
+
+O planejamento inicial previa pelo menos 20 perguntas; esta primeira execução formal utilizou 10 queries, e essa redução permanece registrada como limitação metodológica.
 
 ### Métricas
 
-```text
-Hit@1
-Hit@3
-Hit@5
-MRR
-```
+`Hit@1`
 
-### Caracterização A10
+`Hit@3`
 
-No dataset mínimo atual, com 1 documento e 1 chunk:
+`Hit@5`
 
-```text
-5/5 execuções retornaram document_id=55 como primeiro resultado
-similaridade=0,759571 em todas as execuções
-```
+`MRR`
 
-Wall clock:
+### Resultados
+
+`queries=10`
+
+`found_targets=10`
+
+`Hit@1=1,000`
+
+`Hit@3=1,000`
+
+`Hit@5=1,000`
+
+`MRR=1,000`
+
+`mean_rank_found=1,000`
+
+Latência de retrieval:
 
 | Métrica | Valor |
 |---|---:|
-| mínimo | 87,080 ms |
-| mediana | 97,128 ms |
-| média | 96,645 ms |
-| máximo | 107,383 ms |
+| mínimo | 98,806 ms |
+| mediana | 121,008 ms |
+| média | 119,302 ms |
+| máximo | 141,292 ms |
 
-Esse resultado confirma repetibilidade no estado atual, mas não permite inferir qualidade de retrieval em corpus real.
+Os 10 targets apareceram na primeira posição.
+O resultado caracteriza esse corpus sintético pequeno e semanticamente separado; não permite inferir desempenho em corpus empresarial grande, ambíguo ou semanticamente denso.
 
-**Estado:** PARCIALMENTE VALIDADO
+**Estado:** VALIDADO NO CORPUS CONTROLADO
 
 ---
 
@@ -270,22 +317,54 @@ Ainda falta transformar esse conjunto em uma matriz experimental numericamente r
 
 ## 11. Experimento E08 — Redis failure
 
-Comportamento observado:
+### Protocolo executado
 
-```text
-Redis indisponível:
-health=200
-ready=503
+Foram executados 5 ciclos controlados de falha e recuperação do Redis.
+Em cada ciclo, o Redis foi interrompido, a degradação da readiness foi confirmada e o serviço foi iniciado novamente sem reiniciar a API FastAPI.
 
-Redis recuperado:
-ready=200
-```
+Durante a indisponibilidade:
 
-No A8, após recreation dos serviços, houve uma janela transitória de `ready=503`; sem reiniciar a API, a readiness se recuperou e retornou `200` em 10/10 tentativas subsequentes.
+`/health=200`
 
-Ainda falta medir de forma controlada o tempo exato de recovery.
+`/ready=503`
 
-**Estado:** PARCIALMENTE VALIDADO
+Após a recuperação:
+
+`/ready=200`
+
+### Resultados
+
+Tempo do comando de start do Redis:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 402,295 ms |
+| mediana | 427,907 ms |
+| média | 432,136 ms |
+| máximo | 485,410 ms |
+
+Tempo até o Docker marcar Redis como healthy:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 10.300,122 ms |
+| mediana | 10.387,633 ms |
+| média | 10.404,513 ms |
+| máximo | 10.569,350 ms |
+
+Tempo até a API recuperar `/ready=200`:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 572,620 ms |
+| mediana | 643,790 ms |
+| média | 645,586 ms |
+| máximo | 749,384 ms |
+
+A recuperação funcional da API ocorreu antes de o Docker declarar o container Redis como healthy.
+Por isso, o tempo do healthcheck do Docker não deve ser interpretado como tempo real de recuperação da conectividade da aplicação.
+
+**Estado:** VALIDADO
 
 ---
 
@@ -428,24 +507,104 @@ A variação observada deve ser relatada sem atribuir causa específica sem inst
 
 ## 16. Experimento E13 — Logs e secrets
 
-Existem testes de sanitização, privacidade de métricas e ausência de labels sensíveis.
+### Protocolo executado
 
-Ainda falta uma inspeção acadêmica controlada e documentada dos logs do runtime com valores-canário específicos.
+Foram utilizados somente canários sintéticos para verificar exposição em audit metadata, Authorization, headers, query strings, respostas HTTP e access logs reais do Uvicorn.
 
-**Resultado:** PENDENTE LOCAL REAL
+### Finding inicial
+
+O sanitizador de auditoria descartou corretamente os campos sensíveis testados.
+
+No teste real do runtime, o canário inserido em query string foi detectado no access log padrão do Uvicorn.
+
+`query_canary_in_log=DETECTED`
+
+Não houve evidência de exposição dos canários em Authorization, header customizado ou respostas HTTP.
+
+### Correção
+
+O access log padrão do Uvicorn foi desabilitado nos entrypoints controlados pelo projeto com `--no-access-log`.
+`query_string` também foi adicionada à denylist de labels sensíveis das métricas.
+
+### Regressão
+
+`query_canary_in_log=NOT_FOUND`
+
+`header_canary_in_log=NOT_FOUND`
+
+`authorization_canary_in_log=NOT_FOUND`
+
+Os mesmos canários também não apareceram nas respostas HTTP.
+
+Validação do patch:
+
+`17 testes direcionados passed`
+
+`427 passed, 2 warnings`
+
+PR #23 CI: PASS.
+CI pós-merge em `main`: PASS.
+
+Merge commit: `60658edd330bcf7e15f5cd4a76ce17f430b8c25a`.
+
+**Resultado:** VALIDADO / FINDING CORRIGIDO
 
 ---
 
 ## 17. Experimento E14 — Recursos do notebook
 
-Medir durante workloads de geração:
-- RAM;
-- CPU;
-- VRAM;
-- armazenamento;
-- temperatura, se disponível.
+### Ambiente
 
-**Resultado:** PENDENTE
+Ubuntu 24.04.5 LTS em WSL2.
+CPU: Intel Core i5-8300H, 4 cores físicos e 8 threads.
+RAM visível ao WSL: aproximadamente 15 GiB.
+GPU: NVIDIA GeForce GTX 1050 Ti com 4 GiB de VRAM.
+
+### Protocolo executado
+
+Foram caracterizadas três fases: `cold_idle`, `loaded_idle` e `inference_load`.
+A amostragem ocorreu em intervalo aproximado de 0,5 segundo usando `/proc` e `nvidia-smi`.
+
+### Cold idle
+
+| Métrica | Mediana |
+|---|---:|
+| CPU | 2,725% |
+| RAM usada | 2.306,992 MiB |
+| GPU util. | 0% |
+| VRAM | 802 MiB |
+| GPU temp. | 52 °C |
+
+### Loaded idle
+
+| Métrica | Mediana |
+|---|---:|
+| CPU | 1,879% |
+| RAM usada | 2.689,908 MiB |
+| GPU util. | 0% |
+| VRAM | 3.107 MiB |
+| GPU temp. | 56 °C |
+
+### Inference load
+
+| Métrica | Mediana | Máximo |
+|---|---:|---:|
+| CPU | 51,073% | 64,752% |
+| RAM usada | 2.688,281 MiB | 2.702,582 MiB |
+| GPU util. | 34% | 93% |
+| VRAM | 3.114 MiB | 3.117 MiB |
+| GPU temp. | 58 °C | 65 °C |
+
+Residência do modelo entre cold idle e loaded idle:
+
+`median_vram_delta=2305 MiB`
+
+`median_ram_delta=382,916 MiB`
+
+A temperatura de CPU e a potência não ficaram disponíveis no WSL2.
+O experimento caracteriza recursos deste ambiente local; não constitui benchmark universal nem permite inferir capacidade de produção em escala.
+
+**Resultado:** VALIDADO
 
 ---
 
@@ -454,7 +613,7 @@ Medir durante workloads de geração:
 ### Suíte automatizada
 
 ```text
-424 passed
+427 passed
 2 warnings
 pytest reported duration=1,96 s
 wall clock medido=3,857 s
@@ -493,20 +652,20 @@ máximo=15,901 ms
 
 | ID | Experimento | Métrica principal | Estado |
 |---|---|---|---|
-| E01 | Startup | tempo até ready | PENDENTE |
+| E01 | Startup | tempo até ready | VALIDADO |
 | E02 | local_fast | latência/tokens/recursos | PARCIALMENTE VALIDADO |
-| E03 | local_deep | latência/tokens/recursos | PENDENTE |
+| E03 | local_deep | latência/tokens/recursos | VALIDADO |
 | E04 | embeddings | latência/dimensão/recursos | PARCIALMENTE VALIDADO |
-| E05 | ingestão | tempo/chunks | PENDENTE |
-| E06 | retrieval | Hit@k/MRR | PARCIALMENTE VALIDADO |
+| E05 | ingestão | tempo/chunks | VALIDADO |
+| E06 | retrieval | Hit@k/MRR | VALIDADO NO CORPUS CONTROLADO |
 | E07 | ACL | bloqueios corretos | VALIDADO FUNCIONALMENTE |
-| E08 | Redis failure | degradação/recuperação | PARCIALMENTE VALIDADO |
+| E08 | Redis failure | degradação/recuperação | VALIDADO |
 | E09 | persistência | integridade | VALIDADO |
 | E10 | migrations | idempotência/checksum | VALIDADO |
 | E11 | backup/restore | integridade restaurada | VALIDADO |
 | E12 | agents/tools | policy enforcement/E2E | VALIDADO FUNCIONALMENTE |
-| E13 | logs/secrets | exposição | PENDENTE LOCAL REAL |
-| E14 | recursos | CPU/RAM/VRAM | PENDENTE |
+| E13 | logs/secrets | exposição | VALIDADO / FINDING CORRIGIDO |
+| E14 | recursos | CPU/RAM/VRAM | VALIDADO |
 
 ---
 

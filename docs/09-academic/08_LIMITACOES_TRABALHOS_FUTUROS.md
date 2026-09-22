@@ -27,18 +27,23 @@ Não há evidência experimental de:
 
 ### 1.3 Amostra quantitativa
 
-No A10, embedding, retrieval, geração `local_fast` e agente foram caracterizados com:
+As principais caracterizações controladas utilizam amostras pequenas.
+
+No A10, embeddings, retrieval, geração `local_fast` e agente foram caracterizados com:
 
 ```text
 1 warm-up excluído
 5 execuções medidas
 ```
 
-Essa amostra serve para caracterização inicial e reprodutibilidade local, não para estabelecer distribuição estatística robusta ou comparação definitiva de desempenho.
+Posteriormente, E01, E03, E05 e E08 também utilizaram séries controladas de 5 execuções ou ciclos.
+O E14 utilizou 3 gerações sequenciais durante a fase `inference_load`.
+
+Essas amostras são adequadas para caracterização inicial, reprodutibilidade local e identificação de comportamento do sistema, mas não estabelecem distribuição estatística robusta, capacidade em escala ou comparação definitiva de desempenho.
 
 ### 1.4 Dataset RAG
 
-O estado atual usado nas medições contém:
+O baseline histórico A10 utilizava:
 
 ```text
 1 organização
@@ -46,23 +51,40 @@ O estado atual usado nas medições contém:
 1 chunk
 ```
 
-Por isso, a repetibilidade observada no retrieval não substitui:
-- Hit@k;
-- MRR;
-- testes com ambiguidades;
-- corpus com documentos concorrentes;
-- avaliação de recall em escala.
+O E06 ampliou a avaliação para 10 documentos sintéticos semanticamente distintos, 10 queries com ground truth conhecido e 1 documento persistente adicional como distractor.
 
-### 1.5 Recursos de hardware não instrumentados
+Nesse corpus controlado foram medidos Hit@1, Hit@3, Hit@5 e MRR.
 
-Ainda não foram registrados de forma acadêmica e sincronizada:
+Apesar da ampliação, permanecem limitações importantes:
+- corpus pequeno;
+- documentos sintéticos;
+- separação semântica relativamente clara;
+- ausência de ambiguidades documentais fortes;
+- ausência de corpus empresarial volumoso;
+- ausência de avaliação de recall em escala;
+- primeira execução formal com 10 queries, abaixo das 20 inicialmente planejadas.
+
+Portanto, os resultados do E06 demonstram comportamento correto no corpus controlado, mas não permitem generalizar a qualidade de retrieval para bases empresariais grandes, densas ou ambíguas.
+
+### 1.5 Caracterização de recursos
+
+O E14 passou a registrar de forma sincronizada:
 - CPU;
 - RAM;
+- utilização de GPU;
 - VRAM;
-- temperatura;
-- energia.
+- temperatura de GPU;
+- RSS dos processos principais.
 
-Portanto, os resultados atuais medem principalmente latência e comportamento funcional.
+Permaneceram indisponíveis no ambiente utilizado:
+- temperatura de CPU;
+- potência e consumo energético.
+
+A caracterização foi executada em WSL2 e a fase de carga utilizou apenas 3 gerações sequenciais com amostragem aproximada de 0,5 segundo.
+
+O uso de `nvidia-smi` também introduz custo de observação.
+
+Por isso, os resultados de recursos caracterizam este laboratório local e não constituem benchmark universal, estudo térmico completo ou estimativa de capacidade de produção em escala.
 
 ### 1.6 Alta disponibilidade
 
@@ -115,17 +137,16 @@ O ambiente production-equivalent local foi validado, mas continuam pendentes:
 
 ## 2. Trabalhos futuros de curto prazo
 
-1. Medir startup completo.
-2. Caracterizar `local_deep` com protocolo controlado.
-3. Coletar CPU, RAM e VRAM durante workloads.
-4. Criar corpus RAG controlado maior.
-5. Medir Hit@1, Hit@3, Hit@5 e MRR.
-6. Executar teste acadêmico de logs/secrets com canários.
-7. Consolidar resultados e discussão.
-8. Fazer primeiro deployment manual em VPS.
-9. Validar DNS público e ACME.
-10. Automatizar deployment somente depois do processo manual validado.
-11. Preparar demo e release v1.0.
+1. Completar a caracterização do E02 `local_fast` com time-to-first-token, recursos e amostra formal maior.
+2. Ampliar o E04 embeddings com throughput para múltiplos chunks e caracterização de recursos.
+3. Consolidar o E07 ACL em uma matriz quantitativa acadêmica dos cenários já validados funcionalmente.
+4. Decompor o E12 agents/tools em latência de embedding, retrieval, tool execution e geração.
+5. Executar testes com carga concorrente e múltiplas requisições simultâneas.
+6. Realizar o primeiro deployment manual em VPS real.
+7. Validar DNS público, firewall do host, ACME, logs e recursos no ambiente remoto.
+8. Automatizar o deployment somente depois da validação manual real.
+9. Consolidar documentação acadêmica, apresentação e demo reproduzível.
+10. Preparar e publicar a release v1.0 após os gates de encerramento.
 
 ---
 

@@ -125,7 +125,7 @@ A validação é dividida em quatro níveis.
 Suíte atual:
 
 ```text
-424 testes aprovados
+427 testes aprovados
 ```
 
 Categorias presentes no projeto incluem:
@@ -275,3 +275,56 @@ A reprodutibilidade é apoiada por:
 - commit identificável.
 
 A execução de experimentos acadêmicos deverá sempre registrar o hash do commit usado.
+
+---
+
+## Protocolos experimentais complementares E01–E14
+
+Após a caracterização A10, foram executados experimentos complementares para reduzir lacunas da primeira versão acadêmica.
+Os resultados são caracterizações locais do laboratório e não devem ser tratados como benchmarks universais.
+
+### E01 — Startup
+
+Foram executados 5 ciclos controlados de startup, preservando os volumes persistentes.
+
+A condição principal de prontidão foi PostgreSQL e Redis saudáveis, com `/ready=200`.
+O n8n foi acompanhado separadamente como serviço auxiliar.
+
+### E03 — Geração `local_deep`
+
+O protocolo utilizou 1 warm-up excluído e 5 execuções sequenciais medidas.
+A temperatura foi fixada em 0, com `max_output_tokens=64` e contexto de 4096 tokens.
+
+Modelo avaliado: `qwen2.5-coder:7b-instruct-q3_K_S`.
+
+### E05 — Ingestão RAG
+
+O E05 caracterizou o pipeline de ingestão sem misturar a avaliação de ACL, que permanece no E07.
+Foram medidos 5 documentos após 1 warm-up excluído.
+Cada documento continha 1000 palavras e produziu 6 chunks com `chunk_size_words=220` e `overlap_words=40`.
+Cada execução incluiu chunking, embeddings, persistência em PostgreSQL/pgvector e cleanup posterior.
+
+### E06 — Qualidade de retrieval
+
+Foi utilizado um corpus sintético controlado com 10 documentos semanticamente distintos e 10 queries com ground truth definido previamente.
+Um documento persistente adicional permaneceu como distractor, com 1 chunk por documento temporário e `limit=20`.
+Foram calculados Hit@1, Hit@3, Hit@5 e MRR.
+O planejamento inicial previa pelo menos 20 perguntas, mas esta primeira execução formal utilizou 10 queries; essa redução permanece registrada como limitação metodológica.
+
+### E08 — Redis recovery
+
+Foram executados 5 ciclos controlados com Redis disponível, indisponível e posteriormente recuperado.
+Durante a falha, `/health=200` e `/ready=503`; após o restart do Redis, foi medido o tempo até `/ready=200`.
+A API FastAPI não foi reiniciada entre falha e recuperação.
+
+### E13 — Logs e secrets
+
+Foram utilizados somente canários sintéticos para verificar audit metadata, Authorization, headers, query strings, respostas HTTP e access logs reais do Uvicorn.
+O finding identificado no access log foi corrigido e o mesmo canário foi repetido como teste de regressão.
+
+### E14 — Recursos do sistema
+
+A caracterização foi executada em WSL2 nas fases `cold_idle`, `loaded_idle` e `inference_load`.
+A amostragem utilizou `/proc/stat`, `/proc/meminfo`, `/proc/<pid>` e `nvidia-smi`, em intervalo aproximado de 0,5 segundo.
+A temperatura de CPU não ficou disponível no WSL2; a temperatura da GPU foi obtida por `nvidia-smi`.
+Os resultados representam caracterização local deste hardware e desta configuração, não benchmark universal.

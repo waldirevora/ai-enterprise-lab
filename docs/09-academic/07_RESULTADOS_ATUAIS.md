@@ -17,23 +17,11 @@ Nenhuma medição local deve ser apresentada como benchmark universal.
 
 ## 2. Testes automatizados
 
-Baseline atual:
+Baseline atual após a correção do E13:
 
 ```text
-424 passed
+427 passed
 2 warnings
-```
-
-Tempo reportado pelo pytest:
-
-```text
-1,96 s
-```
-
-Wall clock medido externamente:
-
-```text
-3,857 s
 ```
 
 Warnings conhecidos:
@@ -42,19 +30,39 @@ Warnings conhecidos:
 
 Os warnings não bloquearam a suíte.
 
+A contagem aumentou de 424 para 427 devido aos novos testes de regressão relacionados ao runtime e à privacidade dos access logs.
+
 ---
 
 ## 3. CI
 
 O fluxo de CI permanece validado em Python 3.12.
 
-O PR #21, referente à configuração de timeouts do runtime de agentes, foi aprovado no CI antes do merge e o `main` também passou no CI após o merge.
-
-Commit de referência usado nas coletas A8–A10:
+No E13, o PR #23 passou no CI antes do merge.
 
 ```text
-cb0d3403e261be990c53be5fc0467862f2d5b391
+PR #23
+head=028f8e8e97caad40442dbe9b4b7adc9d1ee531af
+PR CI=success
 ```
+
+O squash merge gerou:
+
+```text
+60658edd330bcf7e15f5cd4a76ce17f430b8c25a
+```
+
+O CI pós-merge em `main` também concluiu com sucesso:
+
+```text
+run_id=35753817461
+event=push
+conclusion=success
+```
+
+O workflow executou instalação e verificação de dependências, compilação das fontes Python, suíte de testes e auditoria das dependências runtime.
+
+O commit `cb0d3403e261be990c53be5fc0467862f2d5b391` permanece como referência histórica das coletas A8–A10.
 
 ---
 
@@ -89,6 +97,8 @@ No Compose local, Redis não possui volume persistente e está configurado como 
 
 ## 6. Readiness
 
+### Comportamento funcional
+
 Com dependências disponíveis:
 
 ```text
@@ -109,9 +119,43 @@ Após recuperação:
 /ready=200
 ```
 
-No A8, depois de recreation dos containers, houve uma resposta transitória `503` e depois 10/10 respostas `200` sem reinício do FastAPI.
+No A8, após recreation dos containers, houve uma resposta transitória `503` e depois 10/10 respostas `200` sem reinício do FastAPI.
 
-Isso demonstra comportamento fail-closed durante indisponibilidade e recuperação automática quando as dependências voltam.
+### E08 — recuperação controlada do Redis
+
+Foram executados 5 ciclos controlados de falha e recuperação sem reiniciar a API.
+
+Tempo do comando de start:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 402,295 ms |
+| mediana | 427,907 ms |
+| média | 432,136 ms |
+| máximo | 485,410 ms |
+
+Tempo até o Docker marcar Redis como healthy:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 10.300,122 ms |
+| mediana | 10.387,633 ms |
+| média | 10.404,513 ms |
+| máximo | 10.569,350 ms |
+
+Tempo até a API recuperar `/ready=200`:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 572,620 ms |
+| mediana | 643,790 ms |
+| média | 645,586 ms |
+| máximo | 749,384 ms |
+
+A recuperação funcional da aplicação ocorreu antes do estado `healthy` do Docker.
+O intervalo do healthcheck do container é mais conservador e não representa o instante exato em que a aplicação voltou a aceitar Redis.
+
+**Resultado E08:** VALIDADO
 
 ---
 
@@ -325,9 +369,40 @@ A dimensão permaneceu consistente em todas as execuções.
 
 ---
 
-## 15. RAG retrieval
+## 15. RAG — ingestão e retrieval
 
-Dataset atual:
+### E05 — Ingestão RAG
+
+O E05 mediu separadamente a etapa de ingestão, sem misturar ACL ou avaliação de retrieval.
+
+Protocolo:
+
+```text
+1 warm-up excluído
+5 documentos medidos
+1000 palavras por documento
+6 chunks por documento
+chunk_size_words=220
+overlap_words=40
+```
+
+O pipeline incluiu chunking, embeddings locais, persistência em PostgreSQL/pgvector e cleanup posterior.
+
+Tempo de ingestão:
+
+| Métrica | Valor |
+|---|---:|
+| mediana | 3.059,056 ms |
+| média | 2.844,063 ms |
+
+As 5 execuções produziram os 6 chunks esperados por documento.
+O cleanup restaurou o baseline após o experimento.
+
+**Resultado E05:** VALIDADO
+
+### Baseline histórico A10
+
+O A10 utilizou o estado mínimo então disponível:
 
 ```text
 organizations=1
@@ -344,20 +419,56 @@ top_document_id=55
 top_similarity=0,759571
 ```
 
-Wall clock:
+Wall clock A10:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 87,080 ms |
+| mediana | 97,128 ms |
+| média | 96,645 ms |
+| máximo | 107,383 ms |
+
+Esse baseline comprova repetibilidade do fluxo mínimo, mas não mede qualidade de retrieval em corpus múltiplo.
+
+### E06 — corpus controlado
+
+Foi executado um experimento formal com 10 documentos sintéticos semanticamente distintos e 10 queries com ground truth definido previamente.
+Um documento persistente adicional permaneceu como distractor.
+Cada documento temporário possuía 1 chunk e o retrieval utilizou `limit=20`.
+
+Resultados:
 
 ```text
-mínimo=87,080 ms
-mediana=97,128 ms
-média=96,645 ms
-máximo=107,383 ms
+queries=10
+found_targets=10
+Hit@1=1,000
+Hit@3=1,000
+Hit@5=1,000
+MRR=1,000
+mean_rank_found=1,000
 ```
 
-Esse resultado comprova o comportamento do fluxo no dataset atual, mas não permite inferir qualidade em corpus maior.
+Latência E06:
+
+| Métrica | Valor |
+|---|---:|
+| mínimo | 98,806 ms |
+| mediana | 121,008 ms |
+| média | 119,302 ms |
+| máximo | 141,292 ms |
+
+Os 10 targets foram recuperados na primeira posição.
+
+O planejamento inicial previa pelo menos 20 perguntas, mas esta primeira execução formal utilizou 10 queries.
+O resultado é válido para esse corpus pequeno, sintético e semanticamente separado, não para inferir desempenho em corpus empresarial grande, ambíguo ou semanticamente denso.
+
+**Resultado E06:** VALIDADO NO CORPUS CONTROLADO
 
 ---
 
-## 16. Geração local_fast
+## 16. Geração local
+
+### local_fast
 
 Modelo:
 
@@ -398,6 +509,45 @@ média=284,994 ms
 máximo=309,530 ms
 ```
 
+### E03 — Geração local_deep
+
+Modelo:
+
+```text
+qwen2.5-coder:7b-instruct-q3_K_S
+```
+
+Protocolo:
+- 1 warm-up excluído;
+- 5 execuções sequenciais medidas;
+- temperatura 0;
+- `max_output_tokens=64`;
+- contexto de 4096 tokens.
+
+Resultado:
+
+```text
+5/5 HTTP=200
+64 generated_tokens por execução
+```
+
+Wall clock mediano:
+
+```text
+7.335,776 ms
+```
+
+Duração mediana reportada pelo provider:
+
+```text
+7.298,600 ms
+```
+
+Como todas as execuções atingiram o limite de 64 tokens, a latência caracteriza uma saída limitada por esse teto.
+A caracterização de recursos do mesmo modelo é apresentada separadamente no E14.
+
+**Resultado E03:** VALIDADO
+
 ---
 
 ## 17. Agente HTTP E2E
@@ -434,7 +584,7 @@ A variação entre as execuções é um resultado observado. Não foi atribuída
 
 ---
 
-## 18. Privacidade das métricas
+## 18. Observabilidade, privacidade e recursos
 
 A implementação de observabilidade possui métricas para:
 - HTTP;
@@ -457,45 +607,168 @@ O contrato proíbe labels sensíveis, incluindo:
 
 Há testes específicos para essa propriedade.
 
----
+### E13 — Logs e secrets
 
-## 19. Resultados ainda pendentes
+O experimento utilizou exclusivamente canários sintéticos para verificar possível exposição de dados sensíveis.
 
-Ainda faltam medições formais de:
+Foram verificados:
+- audit metadata;
+- Authorization;
+- header customizado;
+- query string;
+- respostas HTTP;
+- access log real do Uvicorn.
+
+#### Finding inicial
+
+O sanitizador de auditoria descartou corretamente os campos sensíveis testados.
+
+No runtime real, porém, o canário inserido em query string apareceu no access log padrão do Uvicorn:
 
 ```text
-startup completo
-local_deep em série controlada
-CPU
-RAM
-VRAM
-temperatura
-ingestão em corpus controlado
-Hit@1/Hit@3/Hit@5/MRR em conjunto de perguntas
-tempo exato de Redis recovery
-inspeção acadêmica com canários em logs/secrets
+query_canary_in_log=DETECTED
 ```
+
+Os canários de Authorization, header customizado e respostas HTTP não foram encontrados.
+
+#### Correção
+
+O access log padrão do Uvicorn foi desabilitado nos entrypoints controlados pelo projeto com `--no-access-log`.
+`query_string` também foi adicionada à denylist de labels sensíveis das métricas.
+
+#### Regressão
+
+```text
+query_canary_in_log=NOT_FOUND
+header_canary_in_log=NOT_FOUND
+authorization_canary_in_log=NOT_FOUND
+```
+
+Os mesmos canários também não apareceram nas respostas HTTP.
+
+Validação do patch:
+
+```text
+17 testes direcionados passed
+427 passed
+2 warnings
+PR #23 CI=success
+main post-merge CI=success
+```
+
+**Resultado E13:** VALIDADO / FINDING CORRIGIDO
+
+### E14 — Recursos do sistema
+
+A caracterização foi realizada em Ubuntu 24.04.5 LTS sobre WSL2.
+
+Hardware observado:
+
+```text
+CPU: Intel Core i5-8300H, 4 cores / 8 threads
+RAM visível ao WSL: aproximadamente 15 GiB
+GPU: NVIDIA GeForce GTX 1050 Ti, 4 GiB VRAM
+```
+
+Foram avaliadas três fases: `cold_idle`, `loaded_idle` e `inference_load`.
+
+#### Cold idle
+
+| Métrica | Mediana |
+|---|---:|
+| CPU | 2,725% |
+| RAM usada | 2.306,992 MiB |
+| GPU util. | 0% |
+| VRAM | 802 MiB |
+| GPU temp. | 52 °C |
+
+#### Loaded idle
+
+| Métrica | Mediana |
+|---|---:|
+| CPU | 1,879% |
+| RAM usada | 2.689,908 MiB |
+| GPU util. | 0% |
+| VRAM | 3.107 MiB |
+| GPU temp. | 56 °C |
+
+#### Inference load
+
+Foram executadas 3 gerações sequenciais com o modelo `local_deep`, enquanto os recursos eram amostrados.
+
+| Métrica | Mediana | Máximo |
+|---|---:|---:|
+| CPU | 51,073% | 64,752% |
+| RAM usada | 2.688,281 MiB | 2.702,582 MiB |
+| GPU util. | 34% | 93% |
+| VRAM | 3.114 MiB | 3.117 MiB |
+| GPU temp. | 58 °C | 65 °C |
+
+Residência observada entre cold idle e loaded idle:
+
+```text
+median_vram_delta=2305 MiB
+median_ram_delta=382,916 MiB
+```
+
+O RSS do processo FastAPI permaneceu aproximadamente estável em 78,785 MiB durante a caracterização.
+
+A temperatura de CPU e a potência não ficaram disponíveis no ambiente WSL2.
+O E14 possui apenas 3 gerações sob carga e utiliza amostragem com `nvidia-smi`; portanto, caracteriza recursos deste laboratório e não capacidade de produção em escala.
+As latências observadas durante E14 não devem ser comparadas diretamente com E03 porque protocolo, estado do sistema e instrumentação são diferentes.
+
+**Resultado E14:** VALIDADO
+
+---
+
+## 19. Medições e validações ainda abertas
+
+Os experimentos E01, E03, E05, E06, E08, E13 e E14 deixaram de estar pendentes e possuem resultados registrados neste documento.
+
+As lacunas que permanecem abertas são extensões da caracterização atual:
+
+- E02 `local_fast`: time-to-first-token, recursos e amostra formal maior;
+- E04 embeddings: throughput com múltiplos chunks e caracterização de recursos;
+- E07 ACL: consolidação dos cenários já validados em matriz quantitativa acadêmica;
+- E12 agents/tools: decomposição mais detalhada da latência por etapa;
+- testes com carga concorrente;
+- deployment público real em VPS;
+- validação real de DNS, firewall e ACME;
+- caracterização de escala e capacidade sob condições de produção.
+
+Esses itens permanecem como trabalhos futuros e não devem ser confundidos com ausência de validação funcional das respectivas camadas já testadas.
 
 ---
 
 ## 20. Situação acadêmica atual
 
-O laboratório já possui evidências reais de:
-- correção automatizada;
-- CI;
+O laboratório possui evidências reais de:
+- suíte automatizada com 427 testes aprovados;
+- CI antes e depois do merge;
 - isolamento e segurança de runtime;
-- readiness fail-closed;
-- RAG funcional;
+- readiness fail-closed e recuperação automática do Redis;
+- ingestão RAG controlada;
+- retrieval com Hit@1, Hit@3, Hit@5 e MRR medidos;
 - ACL funcional;
 - agentes com tool server-side;
-- persistência;
-- backup e restore;
-- observabilidade;
-- geração local;
-- métricas quantitativas iniciais.
+- persistência após recreation;
+- backup e restore isolado;
+- observabilidade com restrição de labels sensíveis;
+- inspeção real de logs com finding identificado, corrigido e retestado;
+- geração local_fast e local_deep;
+- caracterização de CPU, RAM, GPU, VRAM e temperatura de GPU.
 
-As conclusões devem continuar limitadas ao ambiente testado, especialmente porque:
-- o dataset RAG é mínimo;
-- as séries quantitativas principais têm `n=5`;
-- ainda não houve carga concorrente;
-- ainda não houve deployment público real em VPS.
+### Limites de interpretação
+
+O baseline histórico A10 utilizava apenas 1 documento e 1 chunk.
+O E06 ampliou a avaliação para 10 documentos sintéticos, 10 queries e 1 distractor persistente, mas o corpus continua pequeno, sintético e semanticamente separado.
+
+As principais séries controladas utilizam amostras pequenas, normalmente `n=5`.
+O E14 utilizou 3 gerações sequenciais durante a caracterização sob carga.
+
+Não houve carga concorrente nem deployment público real em VPS.
+O E14 foi executado em WSL2, e temperatura de CPU e potência não estavam disponíveis.
+
+E02, E04, E07 e E12 permanecem parcialmente caracterizados em aspectos específicos, conforme o plano experimental.
+
+Portanto, os resultados sustentam a validação da arquitetura e de seus principais mecanismos no ambiente local testado, mas não constituem benchmark universal nem demonstração de capacidade de produção em escala.
