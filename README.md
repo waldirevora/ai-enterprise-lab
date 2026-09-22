@@ -12,6 +12,17 @@ O objetivo não é construir apenas mais um chatbot. O projeto estuda como a IA 
 
 > **Status:** desenvolvimento ativo. Arquitetura central, security hardening, CI, agentes, observabilidade, migrations, backup/recovery e a fundação de runtime de produção estão implementados. RAG local end-to-end e ACL/RAG autenticado já foram validados funcionalmente. A caracterização acadêmica continua em andamento.
 
+## Comece por aqui
+
+Para configurar o laboratório local do zero até a primeira consulta autenticada, use o [Quick Start](docs/getting-started/QUICK_START.md).
+
+Documentação operacional:
+
+- [Quick Start](docs/getting-started/QUICK_START.md)
+- [Guia de uso](docs/getting-started/USAGE.md)
+- [Agents, Skills e Tools](docs/getting-started/AGENTS_AND_TOOLS.md)
+- [Troubleshooting](docs/getting-started/TROUBLESHOOTING.md)
+
 ## Principais capacidades
 
 - Execução local de LLMs com Ollama
@@ -188,7 +199,7 @@ Nunca faça commit do `.env`.
 Baseline atualmente validado:
 
 ```text
-427 passed
+435 passed
 ```
 
 A suíte cobre autenticação, autorização, unidades organizacionais, RAG, enforcement de ACL, agentes, policies de agentes, rate limiting, auditoria, privacidade, providers, readiness, migrations, security headers, configuração de produção e contratos de deployment.
@@ -218,6 +229,7 @@ pytest -q
 | Embeddings locais | Validados |
 | RAG end-to-end local | Validado |
 | ACL / RAG autenticado | Validado funcionalmente |
+| Onboarding local / CLIs | Validado |
 | Deploy real em VPS | Pendente |
 | Continuous deployment | Planejado |
 | Benchmarking acadêmico | Em andamento |

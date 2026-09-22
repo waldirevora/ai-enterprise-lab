@@ -12,6 +12,19 @@ The goal is not to build another chatbot. The project studies how generative AI 
 
 > **Status:** active development. Core architecture, security hardening, CI, agents, observability, migrations, backup/recovery, and the production runtime foundation are implemented. Local RAG end-to-end and ACL/authenticated RAG have been functionally validated. Academic characterization remains in progress.
 
+## Getting started
+
+For the complete local path from clone to the first authenticated query, see the [Quick Start](docs/getting-started/QUICK_START.md).
+
+Operational documentation:
+
+- [Quick Start](docs/getting-started/QUICK_START.md)
+- [Usage guide](docs/getting-started/USAGE.md)
+- [Agents, Skills and Tools](docs/getting-started/AGENTS_AND_TOOLS.md)
+- [Troubleshooting](docs/getting-started/TROUBLESHOOTING.md)
+
+The detailed operational guides are currently maintained in Brazilian Portuguese.
+
 ## Core capabilities
 
 - Local LLM execution with Ollama
@@ -188,7 +201,7 @@ Never commit `.env`.
 Current validated baseline:
 
 ```text
-427 passed
+435 passed
 ```
 
 The suite covers authentication, authorization, organizational units, RAG, ACL enforcement, agents, agent policies, rate limiting, audit, privacy, providers, readiness, migrations, security headers, production configuration, and deployment contracts.
@@ -218,6 +231,7 @@ pytest -q
 | Local embeddings | Validated |
 | Local RAG end-to-end | Validated |
 | ACL / authenticated RAG | Functionally validated |
+| Local onboarding / CLIs | Validated |
 | Real VPS deployment | Pending |
 | Continuous deployment | Planned |
 | Academic benchmarking | In progress |
