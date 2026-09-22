@@ -188,7 +188,7 @@ Nunca faça commit do `.env`.
 Baseline atualmente validado:
 
 ```text
-417 passed
+424 passed
 ```
 
 A suíte cobre autenticação, autorização, unidades organizacionais, RAG, enforcement de ACL, agentes, policies de agentes, rate limiting, auditoria, privacidade, providers, readiness, migrations, security headers, configuração de produção e contratos de deployment.
