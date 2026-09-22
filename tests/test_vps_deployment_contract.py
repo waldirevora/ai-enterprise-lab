@@ -195,3 +195,74 @@ def test_pre_start_migration_still_uses_one_off_run():
         "python -m app.db.migrations apply"
         in section
     )
+
+
+def test_dockerfile_disables_uvicorn_access_log():
+    dockerfile = (
+        ROOT / "Dockerfile"
+    ).read_text(
+        encoding="utf-8"
+    )
+
+    assert (
+        '"--no-access-log"'
+        in dockerfile
+    )
+
+
+def test_production_compose_disables_uvicorn_access_log():
+    import yaml
+
+    compose = yaml.safe_load(
+        (
+            ROOT
+            / "infra"
+            / "compose.prod.yaml"
+        ).read_text(
+            encoding="utf-8"
+        )
+    )
+
+    command = (
+        compose["services"]["app"]["command"]
+    )
+
+    assert (
+        "--no-access-log"
+        in command
+    )
+
+    assert (
+        command.count(
+            "--no-access-log"
+        )
+        == 1
+    )
+
+
+def test_readme_uvicorn_commands_disable_access_log():
+    for filename in (
+        "README.md",
+        "README_EN.md",
+    ):
+        text = (
+            ROOT / filename
+        ).read_text(
+            encoding="utf-8"
+        )
+
+        commands = [
+            line.strip()
+            for line in text.splitlines()
+            if line.strip().startswith(
+                "uvicorn app.main:app"
+            )
+        ]
+
+        assert commands
+
+        assert all(
+            "--no-access-log"
+            in command
+            for command in commands
+        )

@@ -53,6 +53,7 @@ def test_sensitive_metric_labels_are_forbidden():
         "api_key",
         "authorization",
         "raw_path",
+        "query_string",
         "exception",
     }
 
