@@ -20,6 +20,7 @@ from app.agents.tools import (
 from app.audit.logger import (
     emit_audit_event,
 )
+from app.core.config import settings
 from app.observability.metrics import (
     AGENT_RUN_DURATION_SECONDS,
     AGENT_RUNS_TOTAL,
@@ -36,8 +37,12 @@ from app.services.generation import (
 )
 
 
-AGENT_TOOL_TIMEOUT_SECONDS = 5.0
-AGENT_GENERATION_TIMEOUT_SECONDS = 30.0
+AGENT_TOOL_TIMEOUT_SECONDS = (
+    settings.agent_tool_timeout_seconds
+)
+AGENT_GENERATION_TIMEOUT_SECONDS = (
+    settings.agent_generation_timeout_seconds
+)
 
 
 class AgentServiceError(Exception):

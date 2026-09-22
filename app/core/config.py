@@ -1,7 +1,7 @@
 from typing import Literal
 
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import (
     BaseSettings,
     SettingsConfigDict,
@@ -75,6 +75,18 @@ class Settings(BaseSettings):
     )
 
     ai_embedding_dimensions: int = 1024
+
+    agent_tool_timeout_seconds: float = Field(
+        default=20.0,
+        gt=0.0,
+        le=120.0,
+    )
+
+    agent_generation_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0.0,
+        le=180.0,
+    )
 
     postgres_host: str = "127.0.0.1"
     postgres_port: int = 5432
