@@ -74,14 +74,14 @@ def install_fake_database(monkeypatch, rows):
     return cursor
 
 
-def run_bootstrap():
+def run_bootstrap(*, role="owner"):
     return asyncio.run(
         module.bootstrap_access(
             organization_slug="lab-default",
             organization_name="AI Enterprise Lab",
             display_name="Quickstart Owner",
             subject="quickstart-owner",
-            role="owner",
+            role=role,
             max_classification="internal",
             credential_name="quickstart",
         )
@@ -160,3 +160,31 @@ def test_parser_rejects_invalid_role():
                 "superuser",
             ]
         )
+
+
+def test_bootstrap_rejects_production(monkeypatch):
+    monkeypatch.setattr(
+        module,
+        "settings",
+        SimpleNamespace(app_env="production"),
+    )
+
+    with pytest.raises(
+        module.BootstrapError,
+        match="disabled in production",
+    ):
+        run_bootstrap()
+
+
+def test_bootstrap_rejects_service_role(monkeypatch):
+    monkeypatch.setattr(
+        module,
+        "settings",
+        SimpleNamespace(app_env="development"),
+    )
+
+    with pytest.raises(
+        module.BootstrapError,
+        match="Invalid bootstrap role",
+    ):
+        run_bootstrap(role="service")
