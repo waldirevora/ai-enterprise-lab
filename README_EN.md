@@ -188,7 +188,7 @@ Never commit `.env`.
 Current validated baseline:
 
 ```text
-417 passed
+424 passed
 ```
 
 The suite covers authentication, authorization, organizational units, RAG, ACL enforcement, agents, agent policies, rate limiting, audit, privacy, providers, readiness, migrations, security headers, production configuration, and deployment contracts.
